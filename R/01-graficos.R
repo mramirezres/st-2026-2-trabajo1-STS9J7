@@ -354,3 +354,66 @@ graficar_hw <- function(resultado, titulo) {
 }
 
 
+# Función: reajusta el ganador con toda la serie, pronostica H pasos y arma la banda heurística
+pronostico_final <- function(y, fechas, fn, H, n_eval, paso, titulo, unidad) {
+  n <- length(y)
+  
+  # 1. Reajuste con toda la serie y pronóstico de los H pasos siguientes
+  pron <- fn(y)$pronosticar(H)
+  
+  # 2. Errores de origen móvil a cada horizonte h = 1, ..., H (mismos orígenes que en 6c)
+  origenes <- (n - H - n_eval + 1):(n - H)
+  errores <- sapply(origenes, function(t) {
+    y[t + 1:H] - fn(y[1:t])$pronosticar(H)
+  })
+  errores <- matrix(errores, nrow = H)
+  desv <- apply(errores, 1, sd)
+  
+  # 3. Banda heurística: pronóstico +- 1,96 * desviación de los errores
+  tabla <- tibble::tibble(
+    h = 1:H,
+    fecha = max(fechas) + paso * (1:H),
+    pronostico = as.numeric(pron),
+    desviacion = desv,
+    inferior = pronostico - 1.96 * desv,
+    superior = pronostico + 1.96 * desv
+  )
+  
+  # 4. Gráfico: último tramo de la serie + pronósticos + banda
+  ult <- (n - n_eval + 1):n
+  historia <- tibble::tibble(fecha = fechas[ult], y = y[ult])
+  union <- tibble::tibble(
+    fecha = c(max(fechas), tabla$fecha),
+    pronostico = c(y[n], tabla$pronostico)
+  )
+  
+  grafico <- ggplot2::ggplot() +
+    ggplot2::geom_ribbon(
+      data = tabla,
+      ggplot2::aes(x = fecha, ymin = inferior, ymax = superior),
+      fill = "purple", alpha = 0.2
+    ) +
+    ggplot2::geom_line(data = historia, ggplot2::aes(x = fecha, y = y), color = "purple") +
+    ggplot2::geom_line(
+      data = union, ggplot2::aes(x = fecha, y = pronostico),
+      color = "firebrick", linetype = "dashed"
+    ) +
+    ggplot2::geom_point(data = tabla, ggplot2::aes(x = fecha, y = pronostico), color = "firebrick") +
+    ggplot2::labs(
+      title = titulo,
+      subtitle = "Banda heurística: pronóstico ± 1,96 · desviación de los errores de origen móvil",
+      x = "Fecha",
+      y = paste0("Valor (", unidad, ")")
+    ) +
+    ggplot2::theme_minimal()
+  
+  list(tabla = tabla, grafico = grafico)
+}
+
+# Tabla de presentación
+tabla_final <- function(res, caption) {
+  tab <- res$tabla
+  names(tab) <- c("h", "Fecha", "Pronóstico", "Desv. errores (s_h)", "Límite inferior", "Límite superior")
+  knitr::kable(tab, digits = 2, align = "cccccc", caption = caption)
+}
+
