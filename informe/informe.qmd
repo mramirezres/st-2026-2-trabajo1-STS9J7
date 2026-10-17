@@ -29,3 +29,25 @@ editor:
     wrap: 72
 bibliography: demostrar4.bib
 ---
+
+```{r}
+#| message: false
+#| warning: false
+
+#Cargar las librerias
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(tibble)
+library(knitr)
+```
+
+```{r}
+#Cargar las funciones
+source("../R/00-lectura.R")
+source("../R/01-graficos.R")
+source("../R/02-operadores.R")
+source("../R/03-dependencia.R")
+source("../R/04-metodos.R")
+source("../R/05-evaluacion.R")
+```
