@@ -5068,3 +5068,56 @@ for (nombre in nombres_graficos) {
 cat("Gráficos guardados:", length(nombres_graficos), "\n")
 ```
 
+
+## Argumentos para los interesados
+
+::: panel-tabset
+
+### Mapa de interesados
+
+| Serie | Interesados (roles) | Decisión concreta | Costo del error por exceso (sobreestimar) | Costo del error por defecto (subestimar) |
+| :--- | :--- | :--- | :--- | :--- |
+| *Serie 1* | • *Decisión:* Gerencia de Administración y Mercadeo<br>• *Ejecución:* Equipo de compras e inventario<br>• *Afectados:* Finanzas (promoción de 45 millones) | Decidir si se invierten *45 millones de pesos* en la promoción del lunes, según si el valor promedio de la compra quedará por debajo de la meta de *510 mil COP*. | Gastar 45 millones en publicidad cuando la demanda ya era suficiente sin promoción. | Perder clientes y volumen de compras por no estimular el mercado en un momento de baja demanda. |
+| *Serie 2* | • *Decisión:* Equipo de Infraestructura y Plataforma<br>• *Ejecución:* Área de tecnología / Compras IT<br>• *Afectados:* Usuarios registrados de la tienda en línea | Decidir cuándo adquirir un nuevo bloque de *5.000 clientes* (la capacidad licenciada es de *45.000*). | Pagar por anticipado una licencia que todavía no se necesita. | Caída del sistema o rechazo de nuevos registros al superar el tope de 45.000 clientes. |
+| *Serie 3* | • *Decisión:* Encargado de compras e inventario<br>• *Ejecución:* Proveedores de perecederos y personal de tienda<br>• *Afectados:* Clientes del supermercado | Definir las cantidades de frutas, verduras y panadería que se piden con *2 días de anticipación* para cada día de la semana. | Pérdida por desperdicio y merma de alimentos perecederos no vendidos. | Venta perdida por desabastecimiento y pérdida de clientes habituales. |
+
+### El argumento de la recomendación
+
+:::: panel-tabset
+
+#### *Serie 1 (Modelo Ganador: Holt Lineal)*
+
+| Componente | Desarrollo del argumento |
+| :--- | :--- |
+| *1. Afirmación* | El valor promedio de la compra se mantendrá por encima de la meta de 510 mil COP en las cuatro semanas pronosticadas, por lo que no es necesario invertir en la promoción de 45 millones. |
+| *2. Evidencia* | El pronóstico puntual va de *559,57 a 562,29 miles de COP* en las próximas 4 semanas. El límite inferior de la banda heurística va de *535,71 a 531,79 miles de COP*, siempre por encima de la meta de 510. |
+| *3. Justificación* | La serie sube con fuerza desde mediados de 2024 y Holt (α = 0,30; β = 0,05) sigue esa tendencia. El límite inferior más bajo (531,79) supera la meta en *21,8 miles de COP*. |
+| *4. Alcance* | Válido para un horizonte de *4 semanas*. La recomendación cambiaría si cambian las condiciones comerciales o si las compras reales cayeran hacia el límite inferior de 531,79. La banda es heurística y debe leerse con cautela porque los errores no son normales (Jarque–Bera, p = 0,036). |
+| *5. Objeción y respuesta* | *Objeción:* ¿Qué pasa si el modelo falla?<br>*Respuesta:* La banda ya incluye el error del modelo. A 4 semanas el RMSE de Holt es de *15,35 miles de COP* (MAD 11,94; MAPE 2,20 %), frente a *18,12* del método ingenuo, y aun así el peor caso queda 21,8 por encima de la meta. |
+
+
+
+#### *Serie 2 (Modelo Ganador: Holt Lineal)*
+
+| Componente | Desarrollo del argumento |
+| :--- | :--- |
+| *1. Afirmación* | La capacidad licenciada de 45.000 clientes no se agotaría en las próximas 6 semanas según el pronóstico puntual, pero la compra del nuevo bloque debe decidirse a más tardar hacia la semana 12, porque la ampliación tarda 6 semanas en activarse. |
+| *2. Evidencia* | El pronóstico puntual pasa de *437,03 cientos de clientes* (43.703) en la semana 1 a *440,88 cientos* (44.088) en la semana 6, con un margen de unos *912 clientes. La banda heurística va de **428,78 a 445,28* en la semana 1 y de *429,91 a 451,86* en la semana 6; su límite superior llega a *450,02* (45.002 clientes) en la semana 4, así que superar el tope no puede descartarse. |
+| *3. Justificación* | Con la pendiente de Holt (unos *77 clientes por semana), el pronóstico alcanzaría los 45.000 hacia la **semana 18; restando las 6 semanas de activación, la compra se decide hacia la **semana 12. Un bloque de 5.000 clientes cubriría unas **65 semanas* más al mismo ritmo. |
+| *4. Alcance* | Válido para las próximas *6 semanas*. La fecha de la semana 18 es una extrapolación fuera del horizonte evaluado y se adelantaría si el crecimiento semanal supera los 77 clientes. |
+| *5. Objeción y respuesta* | *Objeción:* ¿Por qué Holt si la tendencia exponencial fue mejor a 6 semanas?<br>*Respuesta:* A 6 semanas la exponencial tiene RMSE de 4,26 frente a 5,57 de Holt, pero a un paso Holt es el mejor (RMSE *4,17; MAPE **0,78 %) frente a **4,38* del método ingenuo, mientras que la exponencial es peor que el referente (4,66). Holt se elige por el criterio de un paso. |
+
+
+
+#### *Serie 3 (Modelo Ganador: Holt-Winters Aditivo)*
+
+| Componente | Desarrollo del argumento |
+| :--- | :--- |
+| *1. Afirmación* | Las ventas diarias seguirán un patrón semanal muy marcado, por lo que los pedidos deben ajustarse según el día y no con un promedio único. |
+| *2. Evidencia* | Pronóstico de lunes a domingo (millones de COP): *399,43; 398,19; 403,51; 414,95; 445,93; 482,99; 425,96. El mínimo es el martes (398,19) y el pico es el sábado (482,99), **20,9 %* por encima del lunes. El total semanal suma 2.970,96 millones. |
+| *3. Justificación* | El efecto de cada día va de *−31,58* millones (día 1) a *+61,28* millones (día 6), unos 93 millones de diferencia. Como el ciclo no crece con el nivel (correlación de −0,108), el modelo aditivo es el adecuado (α = 0,3; β = 0,2; γ = 0,2). |
+| *4. Alcance* | Válido para los siguientes *7 días* en condiciones normales. Cambiaría ante festivos no programados o eventos imprevistos. Como los pedidos se hacen con 2 días de anticipación, cada orden debe basarse en el pronóstico del día de venta. |
+| *5. Objeción y respuesta* | *Objeción:* ¿Por qué no usar un promedio simple?<br>*Respuesta:* La media simple tiene un RMSE de *32,06 millones* (MAPE de 6,71 %), frente a *10,89 millones* (MAPE de 2,12 %) de Holt-Winters, casi el triple. Con un error típico de 11,79 millones por día, conviene un margen de seguridad pequeño, porque la merma pesa 40 % y el desabastecimiento 22 %. |
+
+:::
+:::
