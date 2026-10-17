@@ -235,4 +235,40 @@ panel_diagnostico <- function(grafico_serie, resultado_cor) {
 }
 
 
+# GRÁFICA DE OPTIMIZACIÓN
+
+graficar_optimizacion <- function(resultado, parametro, titulo) {
+  
+  grafico <- ggplot2::ggplot(
+    resultado$rejilla,
+    ggplot2::aes(
+      x = .data[[parametro]],
+      y = MSE
+    )
+  ) +
+    ggplot2::geom_line(
+      color = "purple"
+    ) +
+    ggplot2::geom_point(
+      color = "purple"
+    ) +
+    ggplot2::geom_point(
+      data = resultado$optimo,
+      ggplot2::aes(
+        x = .data[[parametro]],
+        y = MSE
+      ),
+      color = "red",
+      size = 4
+    ) +
+    ggplot2::labs(
+      title = titulo,
+      x = parametro,
+      y = "MSE"
+    ) +
+    ggplot2::theme_minimal()
+  
+  return(grafico)
+}
+
 
