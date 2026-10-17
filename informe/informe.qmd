@@ -2051,3 +2051,3001 @@ describe la variación semanal de las ventas, no el nivel de ventas
 diarias.
 :::
 :::
+
+
+## Pronóstico y Evaluación
+
+```{r}
+tabla_criterios <- tibble(
+  `Método del Catálogo` = c(
+    "Media Simple", "Ingenuo", "Ingenuo Estacional (s=7)", "Media Móvil (k)",
+    "SES (α)", "Doble Media Móvil (k)", "Tendencia Lineal (OLS)",
+    "Tendencia Cuadrática (OLS)", "Tendencia Exponencial (OLS)",
+    "Tendencia con Ficticias (Suma 0)", "Holt (α, β)",
+    "Holt-Winters Aditivo", "Holt-Winters Multiplicativo"
+  ),
+  `Serie 1 (S1)` = c(
+    "Contraste", "Aplicado", "No aplicado", "No aplicado",
+    "No aplicado", "Aplicado", "No aplicado",
+    "Aplicado", "No aplicado",
+    "No aplicado", "Aplicado",
+    "No aplicado", "No aplicado"
+  ),
+  `Serie 2 (S2)` = c(
+    "No aplicado", "Aplicado", "No aplicado", "Contraste",
+    "No aplicado", "Aplicado", "Aplicado",
+    "No aplicado", "Aplicado",
+    "No aplicado", "Aplicado",
+    "No aplicado", "No aplicado"
+  ),
+  `Serie 3 (S3)` = c(
+    "Aplicado", "No aplicado", "Aplicado", "Aplicado",
+    "Aplicado", "No aplicado", "Contraste",
+    "No aplicado", "No aplicado",
+    "Aplicado", "No aplicado",
+    "Aplicado", "Aplicado"
+  ),
+  `Criterio de Selección` = c(
+    "Asume media constante global. En S1 y S2 falla por ignorar la tendencia; en S3 es adecuada por estacionariedad en nivel.",
+    "Predice con el último valor observado. Adecuado para caminata aleatoria en S1 y cambios locales en S2. Inadecuado en S3 por omitir la estacionalidad",
+    "Repite el patrón del período s=7. Indispensable en S3 por su estacionalidad; descartado en S1 y S2 por ausencia de estacionalidad",
+    "Promedia ventanas cortas para filtrar ruido. Válido en S3 para suavizar en nivel; no aplicado en S1 y S2 usado para el contraste",
+    "Suaviza nivel con memoria adaptativa. Adecuado en S3 al ser estacionaria en media; no aplicado en S1 y S2 por requerir ajuste de pendiente.",
+    "Elimina el sesgo de la Media Móvil ante tendencias locales. Ideal para S1 y S2; innecesario en S3 por ausencia de tendencia",
+    "Modela pendiente determinística fija en t. Adecuado para el crecimiento sostenido de S2; no aplicado en S1 por no tener una pendiente fija y contraste en S3 al forzar pendiente a una serie estacionaria",
+    "Modela curvatura o aceleración t^2. Usado en la serie 1 por sospecha en la inspección visual, descartado en las demás",
+    "Modela crecimiento porcentual sobre log(Yt). Evaluado en S2 por la dirección creciente; omitido en S1 y S3 por falta de crecimiento exponencial.",
+    "Combina el nivel con s-1 ficticias estacionales de suma cero. Diseñado específicamente para capturar la estructura de días en S3.",
+    "Adapta dinámicamente nivel local y pendiente cambiante. Diseñado para series no estacionales con tendencia (S1 y S2); no aplicado en S3.",
+    "Captura nivel, pendiente y estacionalidad de amplitud constante (s=7). Evaluado en S3 para modelar su patrón.",
+    "Captura nivel, pendiente y estacionalidad proporcional al nivel (s=7). Evaluado en S3 para modelar su patrón."
+  )
+)
+
+
+kable(
+  tabla_criterios,
+  caption = "Matriz Criterio de Selección y Asignación de Métodos por Serie",
+  align = c("l", "c", "c", "c", "l")
+)
+```
+
+
+::: {.panel-tabset}
+
+### Serie 1: Valor promedio semanal de la compra en una cadena de tiendas
+
+::: {.panel-tabset}
+
+##### Ingenuo
+
+```{r}
+# Tramo de estimación
+y1_est <- serie1$y[1:n0_1]
+```
+
+```{r}
+# Metodo ingenuo
+modelo_ingenuo_1 <- ajustar_ingenuo(y1_est)
+```
+
+```{r}
+h <- particion$H[1]
+```
+
+```{r}
+# Pronosticos del ingenuo
+pronosticos_ingenuo <- modelo_ingenuo_1$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos ingenuos:", round(pronosticos_ingenuo, 4), "\n"
+)
+```
+
+El método ingenuo pronostica un valor promedio semanal de compra de
+524,1 mil pesos por factura durante las próximas cuatro semanas. Esto
+ocurre porque el método utiliza el último valor observado en el tramo de
+estimación como pronóstico para todos los horizontes.
+
+##### Doble Media Móvil
+
+```{r}
+# K optimo
+rejilla_k <- 3:12
+
+opt_dmm_1 <- optimizar(
+  y = y1_est,
+  metodo = "dmm",
+  rejilla = rejilla_k
+)
+
+opt_dmm_1$rejilla
+
+```
+
+```{r}
+# Graficar k optimo
+graficar_optimizacion(
+  opt_dmm_1,
+  parametro = "k",
+  titulo = "Optimización de la doble media móvil - Serie 1"
+)
+```
+
+```{r}
+# Ajustar DMM con k optimo
+k_opt_1 <- opt_dmm_1$optimo$k
+
+modelo_dmm_1 <- ajustar_dmm(y1_est, k_opt_1)
+```
+
+```{r}
+# Pronosticos
+pronosticos_dmm <- modelo_dmm_1$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos DMM:", round(pronosticos_dmm, 4), "\n"
+)
+```
+
+La doble media móvil, con una ventana de $k=9$, pronostica que el valor
+promedio semanal de compra aumentará de 523,97 a 527,72 mil pesos por
+factura durante las próximas cuatro semanas. Los pronósticos muestran
+una tendencia creciente, lo que sugiere que el método identifica un
+aumento gradual en el valor promedio de las compras.
+
+##### Tendencia Cuadrática
+
+::: {.panel-tabset}
+```{r}
+# Ajustar Tendencia Cuadrática
+modelo_tendencia_1 <- ajustar_tendencia(
+  y = y1_est,
+  tipo = "cuadratica",
+  corregir_sesgo = FALSE
+)
+```
+
+```{r}
+# Pronosticos
+pronosticos_tendencia <- modelo_tendencia_1$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos de tendencia cuadrática:",
+  round(pronosticos_tendencia, 4), "\n"
+)
+```
+
+La tendencia cuadrática pronostica que el valor promedio semanal de
+compra aumentará ligeramente, pasando de 504,26 a 505,36 mil pesos por
+factura durante las próximas cuatro semanas. A diferencia de los métodos
+anteriores, estos pronósticos se mantienen por debajo de la meta de 510
+mil pesos y muestran una leve tendencia creciente a lo largo del
+horizonte.
+
+###### Prueba t de los Coeficientes
+
+Prueba de Hipótesis:
+
+$$H_0: \beta_j=0$$
+
+$$H_1: \beta_j \neq 0$$
+
+Estadístico de prueba:
+$$t = \frac{\hat{\beta}_j}{SE_{\text{robusto}}(\hat{\beta}_j)}$$
+
+Distribución bajo $H_0$:
+
+$$t \sim t_{n-3}$$
+
+Región de rechazo:
+
+$$|t|> t_{0.975, n-3}$$
+
+```{r}
+tabla_coef_1 <- modelo_tendencia_1$parametros$coeficientes
+
+tabla_coef_1$estimacion   <- round(tabla_coef_1$estimacion, 4)
+tabla_coef_1$se_ordinario <- round(tabla_coef_1$se_ordinario, 4)
+tabla_coef_1$se_robusto   <- round(tabla_coef_1$se_robusto, 4)
+tabla_coef_1$t            <- round(tabla_coef_1$t, 4)
+tabla_coef_1$valor_p      <- format.pval(tabla_coef_1$valor_p, digits = 4, eps = 0.0001)
+
+tabla_coef_1
+```
+
+La tendencia cuadrática estimada para la serie 1 presenta un intercepto
+de 494,90 miles de pesos, que representa el nivel inicial establecido
+por el modelo. El coeficiente lineal es negativo (-0,2474), mientras que
+el coeficiente cuadrático es positivo (0,0019), lo que sugiere una
+tendencia con curvatura hacia arriba. Sin embargo, al utilizar los
+errores estándar robustos a la autocorrelación, el coeficiente lineal
+tiene un valor $p=0,1033$ y el cuadrático un valor $p=0,055$. Como
+ambos valores superan el nivel de significancia del 5 %, no se
+consideran estadísticamente significativos. Además, los errores estándar
+robustos son mayores que los ordinarios para los tres coeficientes, lo
+que refleja una mayor incertidumbre al considerar la posible
+autocorrelación de los residuos.
+
+##### Revisión de los supuestos
+
+```{r}
+residuos_1 <- modelo_tendencia_1$parametros$residuos
+
+diagnostico_tendencia_1 <- validar_errores(
+  e = residuos_1,
+  m = NULL,
+  p = 3
+)
+```
+
+###### Correlograma
+
+```{r}
+diagnostico_tendencia_1$correlograma$grafico
+```
+
+El correlograma muestra que los primeros 9 rezagos del ACF superan las
+bandas. Esto indica que el modelo de tendencia cuadrática no logró
+capturar toda la estructura y la información presente en la serie
+original. Por lo tanto, los errores o residuos aún contienen una
+correlación significativa, no son compatibles con ruido blanco.
+
+###### Ljung Box
+
+Prueba de Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{m}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$
+
+Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{m} \frac{{r}_h^2}{T - h} $$
+
+Distribución
+
+$$Q \sim \chi^2_{7}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 7}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tendencia_1$ljung_box$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tendencia_1$ljung_box$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tendencia_1$ljung_box$valor_critico, 4
+  ), "\n",
+  "Valor p:", round(
+    diagnostico_tendencia_1$ljung_box$valor_p, 4
+  ), "\n"
+)
+```
+
+Como el estadístico de prueba es mayor que el valor crítico y el valor p
+es menor que el nivel de significancia del 5 %, se rechaza la hipótesis
+nula de ausencia de autocorrelación conjunta hasta el rezago 10. Por
+tanto, los residuos presentan autocorrelación significativa, lo que
+indica que la tendencia cuadrática no captura toda la estructura
+temporal de la serie.
+
+###### Jarque Bera
+
+$$ H_0:\text{los errores tienen distribución normal} $$
+$$ H_1:\text{los errores no tienen distribución normal} $$
+
+Distribución Bajo $H_0$:
+
+$$ JB \sim \chi^2_{2} $$
+
+Estadístico de Prueba
+
+$$JB = \frac{T}{6} \left( A^2 + \frac{(K - 3)^2}{4} \right)$$
+
+Región de rechazo
+
+$$ JB>\chi^2_{0.95,2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tendencia_1$jarque_bera$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tendencia_1$jarque_bera$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tendencia_1$jarque_bera$valor_critico, 4
+  ), "\n",
+  "Valor p:", format.pval(
+    diagnostico_tendencia_1$jarque_bera$valor_p,
+    digits = 4
+  ), "\n"
+)
+```
+
+Como el estadístico es menor que el valor crítico y el valor p es mayor
+que el nivel de significancia del 5 %, no se rechaza la hipótesis nula
+de normalidad. Por tanto, no se encuentra evidencia estadística
+suficiente para afirmar que los residuos se apartan de una distribución
+normal.
+
+###### Durbin Watson
+
+$$ H_0:\rho=0 $$ $$ H_1:\rho\neq0 $$
+
+Estadístico de Prueba:
+
+$$ DW=\frac{\sum_{t=2}^{T}(e_t-e_{t-1})^2} {\sum_{t=1}^{T}e_t^2} $$
+
+```{r}
+diagnostico_tendencia_1$durbin_watson <-
+  durbin_watson(modelo_tendencia_1$parametros$residuos)
+
+cat(
+  "Estadístico de prueba:",
+  round(diagnostico_tendencia_1$durbin_watson$estadistico, 4), "\n",
+  "d aprox:",
+  round(diagnostico_tendencia_1$durbin_watson$d_aprox, 4), "\n",
+  "dL:",
+  round(diagnostico_tendencia_1$durbin_watson$dL, 4), "\n",
+  "dU:",
+  round(diagnostico_tendencia_1$durbin_watson$dU, 4), "\n"
+)
+```
+
+El estadístico de Durbin-Watson (aproximadamente 0.8243) es menor que el
+límite inferior de la tabla ($d_L = 1.6807$). Por lo tanto, se rechaza
+la hipótesis nula de no autocorrelación y se concluye que existe una
+fuerte autocorrelación positiva en los errores del modelo, lo que
+confirma que los residuos no son independientes entre sí.
+:::
+
+##### Holt Lineal
+
+```{r}
+# Alfa y Beta optimos
+rejilla_holt <- seq(0.05, 0.95, by = 0.05)
+
+opt_holt_1 <- optimizar(
+  y = y1_est,
+  metodo = "holt",
+  rejilla = rejilla_holt
+)
+
+opt_holt_1$rejilla
+```
+
+```{r}
+# Graficar alfa, beta optimos
+graficar_holt(opt_holt_1)
+```
+
+```{r}
+# Ajustar el modelo
+alpha_opt_1 <- opt_holt_1$optimo$alpha
+beta_opt_1 <- opt_holt_1$optimo$beta
+
+modelo_holt_1 <- ajustar_holt(
+  y1_est,
+  alpha_opt_1,
+  beta_opt_1
+)
+```
+
+```{r}
+# Pronosticos
+pronosticos_holt <- modelo_holt_1$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos Holt:", round(pronosticos_holt, 4), "\n"
+)
+```
+
+El método de Holt lineal, con $\alpha=0.3$ y $\beta=0.05$, pronostica
+que el valor promedio semanal de compra aumentará de 520,86 a 524,09 mil
+pesos por factura durante las próximas cuatro semanas. Los resultados
+muestran una tendencia creciente, pues el método incorpora tanto el
+nivel de la serie como su tendencia.
+
+##### Media Simple (Contraste)
+
+```{r}
+# Media simple
+modelo_media <- ajustar_media(y1_est)
+
+pronosticos_media_simple <- modelo_media$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos de media simple:",
+  round(pronosticos_media_simple, 4), "\n"
+)
+```
+
+La media simple pronostica un valor promedio semanal de compra constante
+de 491,33 mil pesos por factura durante las próximas cuatro semanas. Al
+utilizar el promedio de las observaciones del tramo de estimación, el
+método no incorpora una tendencia creciente o decreciente y genera el
+mismo pronóstico para todos los horizontes.
+
+
+#### Medidas de error
+
+```{r}
+# Evaluacion de los metodos
+eval_s1_ing       <- origen_movil(serie1$y, fn_ajuste = ajustar_ingenuo, H = 4, n_eval = 40, s = 1)
+
+eval_s1_dmm       <- origen_movil(serie1$y, fn_ajuste = ajustar_dmm, H = 4, n_eval = 40, s = 1, k = opt_dmm_1$optimo$k)
+
+eval_s1_holt      <- origen_movil(serie1$y, fn_ajuste = ajustar_holt, H = 4, n_eval = 40, s = 1, alpha =
+                                    opt_holt_1$optimo$alpha, beta = opt_holt_1$optimo$beta)
+
+eval_s1_cuad      <- origen_movil(serie1$y, fn_ajuste = ajustar_tendencia, H = 4, n_eval = 40, s = 1, tipo =
+                                    "cuadratica")
+
+eval_s1_media_con <- origen_movil(serie1$y, fn_ajuste = ajustar_media, H = 4, n_eval = 40, s = 1)
+```
+
+```{r}
+tabla_s1_h1 <- tibble(
+  `Método de Pronóstico` = c(
+    "Referente Ingenuo (Simple)", 
+    "Doble Media Móvil (DMM)", 
+    "Holt Lineal", 
+    "Tendencia Cuadrática MCO", 
+    "Contraste: Media Simple"
+  ),
+  RMSE = c(
+    eval_s1_ing$h1$RMSE, 
+    eval_s1_dmm$h1$RMSE, 
+    eval_s1_holt$h1$RMSE, 
+    eval_s1_cuad$h1$RMSE, 
+    eval_s1_media_con$h1$RMSE
+  ),
+  MAD = c(
+    eval_s1_ing$h1$MAD, 
+    eval_s1_dmm$h1$MAD, 
+    eval_s1_holt$h1$MAD, 
+    eval_s1_cuad$h1$MAD, 
+    eval_s1_media_con$h1$MAD
+  ),
+  `MAPE (%)` = c(
+    eval_s1_ing$h1$MAPE, 
+    eval_s1_dmm$h1$MAPE, 
+    eval_s1_holt$h1$MAPE, 
+    eval_s1_cuad$h1$MAPE, 
+    eval_s1_media_con$h1$MAPE
+  )
+) %>% 
+  arrange(RMSE) %>% 
+  mutate(
+    RMSE = round(RMSE, 3),
+    MAD  = round(MAD, 3),
+    `MAPE (%)` = round(`MAPE (%)`, 3)
+  )
+
+
+kable(
+  tabla_s1_h1,
+  align = "lccc",
+  caption = "Serie 1: Medidas de error para horizonte h = 1 (Origen Móvil)",
+  booktabs = TRUE
+)
+```
+
+Al comparar el desempeño de los cinco métodos en el periodo de evaluación, el Holt Lineal resulta ser el mejor modelo de pronóstico para la Serie 1. Presenta las métricas de error más bajas en todos los frentes, alcanzando un RMSE de $11.779$, una MAD de $8.63$ y un MAPE de apenas $1.59\%$. En términos prácticos, el MAPE nos indica que los pronósticos de este modelo solo se equivocan en promedio un $1.59\%$ respecto al valor real de la serie, mientras que la MAD nos dice que, en unidades reales, las predicciones se desvían alrededor de $8.63$ unidades del dato verdadero. Esto demuestra que Holt logra adaptarse con gran agilidad a la velocidad y dirección con la que venía cambiando la serie al final del periodo de entrenamiento.
+
+En segundo y tercer lugar se ubican el Referente Ingenuo (MAPE del $1.83\%$, con un fallo promedio de $9.91$ unidades) y la Doble Media Móvil (MAPE del $1.86\%$, equivocándose en unos $10.06$ puntos). El hecho de que el modelo Ingenuo sea tan competitivo confirma que el último valor observado tiene un peso enorme para predecir el futuro inmediato, mientras que la DMM logra suavizar el comportamiento sin alejarse demasiado de la realidad. Por su parte, la Tendencia Cuadrática MCO queda más relegada con un MAPE del $2.65\%$ y un fallo absoluto promedio de $14.4$ unidades (MAD). Esto significa que proyectar la curva cuadrática rígida hacia el futuro tiende a sobreestimar o subestimar el comportamiento de la serie a medida que nos alejamos en el tiempo, siendo menos flexible que las metodologías de suavizamiento.
+
+Finalmente, la Media Simple registra el peor desempeño con un MAPE del $7.73\%$ y una desviación promedio de $42.02$ unidades respecto a los valores reales (con un RMSE de $45.1$). Este resultado tan deficiente confirma que asumir que el futuro se comportará igual al promediar todo el pasado histórico ignora por completo la dinámica y la tendencia de la serie, cometiendo errores sistemáticos y desproporcionados.
+
+```{r}
+# h = 4
+tabla_s1_h4 <- tibble(
+  `Método de Pronóstico` = c(
+    "Referente Ingenuo (Simple)", 
+    "Doble Media Móvil (DMM)", 
+    "Holt Lineal", 
+    "Tendencia Cuadrática MCO", 
+    "Contraste: Media Simple"
+  ),
+  RMSE = c(
+    eval_s1_ing$hH$RMSE, 
+    eval_s1_dmm$hH$RMSE, 
+    eval_s1_holt$hH$RMSE, 
+    eval_s1_cuad$hH$RMSE, 
+    eval_s1_media_con$hH$RMSE
+  ),
+  MAD = c(
+    eval_s1_ing$hH$MAD, 
+    eval_s1_dmm$hH$MAD, 
+    eval_s1_holt$hH$MAD, 
+    eval_s1_cuad$hH$MAD, 
+    eval_s1_media_con$hH$MAD
+  ),
+  `MAPE (%)` = c(
+    eval_s1_ing$hH$MAPE, 
+    eval_s1_dmm$hH$MAPE, 
+    eval_s1_holt$hH$MAPE, 
+    eval_s1_cuad$hH$MAPE, 
+    eval_s1_media_con$hH$MAPE
+  )
+) %>% 
+  arrange(RMSE) %>% 
+  mutate(
+    RMSE = round(RMSE, 3),
+    MAD  = round(MAD, 3),
+    `MAPE (%)` = round(`MAPE (%)`, 3)
+  )
+
+
+kable(
+  tabla_s1_h4,
+  align = "lccc",
+  caption = "Serie 1: Medidas de error para horizonte h = 4 (Origen Móvil)",
+  booktabs = TRUE
+)
+```
+
+Al evaluar el desempeño de los métodos a un horizonte más cercano de $4$ pasos adelante, el Holt Lineal se consolida nuevamente como el modelo más preciso para la Serie 1. Alcanza las métricas de error más bajas de la tabla, con un RMSE de $14.922$, una MAD de $11.45$ y un MAPE del $2.11\%$. En términos prácticos, esto significa que las predicciones de Holt apenas se equivocan en promedio un $2.11\%$ respecto a los valores reales, desviándose en unas $11.45$ unidades del dato verdadero. Esto demuestra que su estructura de nivel y pendiente logra capturar adecuadamente la inercia de la serie en el corto plazo.
+
+En la segunda posición se ubica el Referente Ingenuo (MAPE del $2.685\%$ y una desviación absoluta promedio de $14.53$ unidades), seguido muy de cerca por la Doble Media Móvil (DMM) (MAPE del $2.88\%$ y MAD de $15.71$). El buen rendimiento del modelo Ingenuo confirma que en un horizonte corto de $4$ periodos, asumir que el futuro proyecta el último valor observado es una estrategia simple pero sólida. Por su parte, la DMM penaliza ligeramente más en el RMSE ($17.58$) debido a la velocidad de ajuste de sus ventanas.
+
+Después está la Tendencia Cuadrática MCO con un MAPE del $2.42\%$ y una MAD de $13.202$ unidades, que son mejores que las del Ingenuo y la DMM, pero con un RMSE mayor ($17.69$). Esto indica que, aunque en promedio se equivoca menos, comete algunos errores grandes al proyectar la trayectoria parabólica. Por último, la Media Simple vuelve a ser el modelo con peor desempeño por un amplio margen, registrando un MAPE del $8.23\%$ y alejándose en promedio $44.9$ unidades de los valores reales (RMSE de $47.6$). Este fallo sistemático confirma que estimar el futuro mediante el promedio histórico global ignora la evolución reciente de la serie, resultando inadecuado para la toma de decisiones.
+
+#### Validar Ganador
+
+El método Holt lineal presenta los menores errores para el horizonte de
+un paso ($h=1$), por lo que se selecciona como ganador para este
+horizonte.
+
+::: {.panel-tabset}
+
+```{r}
+# Errores de Holt en origen móvil a un paso
+errores_holt_1 <- eval_s1_holt$e_h1
+
+# Validar los errores
+resultado_errores_holt_1 <- validar_errores(
+  e = errores_holt_1,
+  m = NULL,
+  p = 2
+)
+```
+
+##### Gráfico
+
+```{r}
+g1_s1 <- resultado_errores_holt_1$grafico_errores
+
+g2_s1 <- resultado_errores_holt_1$correlograma$grafico
+
+g1_s1 | g2_s1
+```
+
+El gráfico muestra que los errores del pronóstico oscilan alrededor de
+la línea cero, lo que indica que las predicciones del modelo no están
+sesgadas en promedio. Sin embargo, la variabilidad y la magnitud de los
+errores aumentan a medida que avanza el tiempo, reflejando una mayor
+inestabilidad y picos más pronunciados en los últimos periodos.
+
+
+El correlograma muestra que todos los rezagos se encuentran dentro de
+los límites de las líneas de confianza. Esto indica que los residuos se
+comportan como ruido blanco, lo que significa que el modelo de Holt
+lineal capturó de manera adecuada la estructura de la serie y ya no
+queda información ni autocorrelación significativa sin explicar.
+
+##### Prueba t
+
+Prueba de Hipótesis
+
+$$H_0: \mu_e = 0$$ $$H_1: \mu_e \neq 0$$
+
+Estadístico de Prueba:
+
+$$t = \frac{\bar{e}}{s_e / \sqrt{40}}$$
+
+Distribución bajo $H_0$
+
+$$t \sim t_{39}$$
+
+Región de Rechazo
+
+$$|t| > t_{0.975,\,39}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(resultado_errores_holt_1$t, 4), "\n",
+  "Grados de libertad:", resultado_errores_holt_1$grados_libertad_t, "\n",
+  "Valor crítico:", round(
+    qt(0.975, resultado_errores_holt_1$grados_libertad_t), 4
+  ), "\n",
+  "Valor p:", round(resultado_errores_holt_1$valor_p_t, 4), "\n"
+)
+```
+
+Como valor p \> 0.05 no se rechaza $H_0$, no se encuentra evidencia
+estadísticamente significativa para afirmar que la media de los errores
+de Holt sea diferente de cero. Por tanto, los errores son compatibles
+con una media nula, lo cual es deseable para un método de pronóstico. No
+se encuentra evidencia de sesgo sistemático.
+
+##### Ljung Box
+
+Prueba de Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{8}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$
+
+Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{8} \frac{{r}_h^2}{T - h} $$
+
+Distribución
+
+$$Q \sim \chi^2_{8}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 8}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    resultado_errores_holt_1$ljung_box$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", resultado_errores_holt_1$ljung_box$grados_libertad, "\n",
+  "Valor crítico:", round(
+    resultado_errores_holt_1$ljung_box$valor_critico, 4
+  ), "\n",
+  "Valor p:", round(
+    resultado_errores_holt_1$ljung_box$valor_p, 4
+  ), "\n"
+)
+```
+
+Como valor p \> 0.05, no se rechaza $H_0$, no se encuentra evidencia
+estadísticamente significativa de autocorrelación conjunta en los
+errores de Holt hasta el rezago 8. Esto sugiere que el método captura
+razonablemente la dependencia temporal evaluada en esos rezagos.
+
+##### Jarque Bera
+
+Prueba de Hipótesis
+
+$$ H_0:\text{los errores tienen distribución normal} $$
+$$ H_1:\text{los errores no tienen distribución normal} $$
+
+Distribución Bajo $H_0$:
+
+$$ JB \sim \chi^2_{2} $$
+
+Estadístico de Prueba
+
+$$JB = \frac{T}{6} \left( A^2 + \frac{(K - 3)^2}{4} \right)$$
+
+Región de rechazo
+
+$$ JB>\chi^2_{0.95,2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    resultado_errores_holt_1$jarque_bera$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", resultado_errores_holt_1$jarque_bera$grados_libertad, "\n",
+  "Valor crítico:", round(
+    resultado_errores_holt_1$jarque_bera$valor_critico, 4
+  ), "\n",
+  "Valor p:", format.pval(
+    resultado_errores_holt_1$jarque_bera$valor_p,
+    digits = 4
+  ), "\n"
+)
+```
+
+Como valor p \< 0.05, se rechaza $H_0$, hay evidencia estadísticamente
+significativa para afirmar que los errores de Holt no siguen una
+distribución normal.
+
+##### Durbin Watson
+
+Prueba de Hipótesis:
+
+$$ H_0:\rho=0 $$ $$ H_1:\rho\neq0 $$
+
+Estadístico de Prueba:
+
+$$ DW=\frac{\sum_{t=2}^{T}(e_t-e_{t-1})^2} {\sum_{t=1}^{T}e_t^2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:",
+  round(resultado_errores_holt_1$durbin_watson$estadistico, 4), "\n",
+  "d aprox:",
+  round(resultado_errores_holt_1$durbin_watson$d_aprox, 4), "\n",
+  "dL:",
+  round(resultado_errores_holt_1$durbin_watson$dL, 4), "\n",
+  "dU:",
+  round(resultado_errores_holt_1$durbin_watson$dU, 4), "\n"
+)
+```
+
+El valor del estadístico de Durbin-Watson ($d \approx 1.5539$) es mayor
+que el límite superior ($d_U = 1.4677$). Por lo tanto, se encuentra en
+la zona de no rechazo de la hipótesis nula, lo que indica que no hay
+evidencia estadística suficiente para afirmar que existe autocorrelación
+de primer orden en los errores del modelo.
+:::
+
+#### Pronóstico Final
+
+```{r}
+T_1 <- length(serie1$y)
+H_1 <- 4
+
+# Ajustar Holt usando toda la serie 1
+modelo_final_1 <- ajustar_holt(
+  serie1$y,
+  alpha = 0.30,
+  beta = 0.05
+)
+
+# Pronósticos de las H semanas siguientes
+pronosticos_finales_1 <- modelo_final_1$pronosticar(H_1)
+
+# Desviación estándar de los errores para cada horizonte
+desv_errores_1 <- sapply(1:4, function(h) {
+  errores <- eval_s1_holt$todos$error[
+    eval_s1_holt$todos$h == h
+  ]
+  sd(errores)
+})
+
+# Datos para el gráfico
+grafico_final_1 <- data.frame(
+  tiempo = 1:(T_1 + H_1),
+  real = c(serie1$y, rep(NA, H_1)),
+  ajuste = c(
+    modelo_final_1$yhat,
+    rep(NA, H_1)
+  ),
+  pronostico = c(
+    rep(NA, T_1),
+    pronosticos_finales_1
+  ),
+  inferior = c(
+    rep(NA, T_1),
+    pronosticos_finales_1 - 1.96 * desv_errores_1
+  ),
+  superior = c(
+    rep(NA, T_1),
+    pronosticos_finales_1 + 1.96 * desv_errores_1
+  )
+)
+
+# Gráfico final
+ggplot2::ggplot(
+  grafico_final_1,
+  ggplot2::aes(x = tiempo)
+) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = real),
+    color = "purple"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = ajuste),
+    color = "green"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = pronostico),
+    color = "green"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = inferior),
+    color = "black",
+    linetype = "dotted"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = superior),
+    color = "black",
+    linetype = "dotted"
+  ) +
+  ggplot2::geom_vline(
+    xintercept = T_1,
+    color = "red",
+    linetype = "dashed"
+  ) +
+  ggplot2::labs(
+    title = "Serie 1: ajuste y pronóstico final de Holt",
+    subtitle = "Límites heurísticos de ±1,96 desviaciones estándar",
+    x = "Semana",
+    y = "Valor promedio de compra (miles de pesos)"
+  ) +
+  ggplot2::theme_minimal()
+```
+
+El gráfico muestra el ajuste del modelo de Holt sobre toda la serie de
+datos y su proyección para los siguientes cuatro horizontes temporales.
+La línea verde representa el ajuste del modelo, el cual sigue de cerca
+la trayectoria ascendente de la serie original en color morado hasta
+llegar al final del periodo de observación.
+
+```{r}
+# Para los ultimos periodos
+ganador_s1 <- "Holt Lineal"
+fn_s1 <- function(y) ajustar_holt(y, alpha = opt_holt_1$optimo$alpha, beta = opt_holt_1$optimo$beta)
+
+final_s1 <- pronostico_final(
+  y = serie1$y, fechas = serie1$fecha, fn = fn_s1, H = 4, n_eval = 40, paso = 7,
+  titulo = paste0("Serie 1: pronóstico final a 4 semanas (", ganador_s1, ")"),
+  unidad = attr(serie1, "unidad")
+)
+
+final_s1$grafico
+```
+
+```{r}
+tabla_final(final_s1, "Serie 1: Pronóstico final y banda heurística")
+```
+
+```{r}
+# Comparación con la meta de 510 mil COP
+meta_s1 <- 510
+col_sup <- grep("sup", names(final_s1$tabla), ignore.case = TRUE, value = TRUE)[1]
+n_punt  <- sum(final_s1$tabla$pronostico < meta_s1)
+texto_s1 <- paste0(
+  "el pronóstico puntual queda por debajo de la meta en ", n_punt, " de las 4 semanas"
+)
+if (!is.na(col_sup)) {
+  n_sup <- sum(final_s1$tabla[[col_sup]] < meta_s1)
+  texto_s1 <- paste0(texto_s1, " y el límite superior de la banda en ", n_sup, " de las 4 semanas")
+}
+texto_s1 <- paste0(texto_s1, ".")
+```
+
+El método ganador a un paso ($h = 1$) para la Serie 1 es **`r ganador_s1`**. Reajustado con las 200 observaciones, pronostica para las próximas 4 semanas valores entre `r round(min(final_s1$tabla$pronostico), 1)` y `r round(max(final_s1$tabla$pronostico), 1)` mil COP. Frente a la meta de 510 mil COP de la campaña, `r texto_s1` La banda se ensancha con el horizonte porque los errores de origen móvil crecen al pronosticar más pasos adelante; al ser heurística, debe leerse como un orden de magnitud de la incertidumbre y no como una probabilidad exacta.
+
+
+#### Conclusión
+
+La serie 1 tiene tendencia y no tiene estacionalidad: el valor promedio de la compra va de 451,8 a 577,5 miles de pesos, con un nivel que baja en 2022, se estabiliza hasta mediados de 2024 y luego sube con fuerza. Su ACF parte en r₁ = 0,855 y decae lentamente, sin picos que se repitan. Una primera diferencia la vuelve plausiblemente estacionaria: la varianza baja de 631,72 a 175,94 y r₁ pasa a −0,365, mientras que una segunda diferencia la sube a 480,70 y lleva r₁ a −0,581, señal de diferencia de más. En el origen móvil, con 160 observaciones de estimación y 40 orígenes en h = 1 y 37 en h = 4, el mejor método es Holt con α = 0,30 y β = 0,05, elegidos por MSE de un paso en el tramo de estimación. Obtiene un RMSE de 12,03 miles de pesos (MAD 8,90; MAPE 1,64 %) en h = 1 y de 15,35 (MAD 11,94; MAPE 2,20 %) en h = 4. Frente al ingenuo simple, que es el referente porque la serie no tiene estacionalidad (RMSE de 12,62 y 18,12), Holt reduce el RMSE en 4,75 % en h = 1 y en 15,29 % en h = 4. En h = 1 la doble media móvil (14,02) y la tendencia cuadrática (16,02) no superan al referente. En h = 4 sí lo superan en RMSE (17,46 y 17,60), pero no en MAD (14,61 y 15,67 frente a 13,41). En los errores de Holt a un paso, la media no difiere de cero (t = −0,15; p = 0,885) y Ljung–Box con m = 10 no encuentra autocorrelación (Q = 12,21; p = 0,271). El correlograma de los errores queda dentro de las bandas y Durbin–Watson da d = 1,455, equivalente a r₁ ≈ 0,22, una autocorrelación positiva débil. Jarque–Bera rechaza la normalidad (JB = 6,62 frente a 5,99; p = 0,036). Lo que Holt deja sin aprovechar es, por tanto, esa dependencia leve en el primer rezago y la forma no normal de los errores, que además crecen con el horizonte (la desviación pasa de unos 12,2 en h = 1 a unos 15,6 en h = 4). Los pronósticos de Holt para las próximas cuatro semanas son 559,57; 560,48; 561,38 y 562,29 miles de pesos. Con la banda heurística de ±1,96 desviaciones de los errores de origen móvil, que no es un intervalo de confianza y debe leerse con cautela porque los errores no son normales, el límite inferior va de 535,71 a 531,79, siempre por encima de la meta de 510. Respondiendo a la pregunta del área de mercadeo, el valor promedio de la compra en las próximas cuatro semanas se pronostica entre 559,57 y 562,29 miles de pesos, no se espera que quede por debajo de 510 (el límite inferior más bajo supera la meta en 21,8 miles de pesos) y, por tanto, no hace falta lanzar la promoción de 45 millones de pesos el lunes, mientras no cambien las condiciones comerciales.
+
+:::
+
+### Serie 2: Clientes registrados en una tienda en línea
+
+::: {.panel-tabset}
+
+
+##### Ingenuo
+
+```{r}
+# Tramo de estimación
+y2_est <- serie2$y[1:n0_2]
+```
+
+```{r}
+# Metodo ingenuo
+modelo_ingenuo_2 <- ajustar_ingenuo(y2_est)
+
+```
+
+```{r}
+h <- particion$H[2]
+```
+
+```{r}
+# Pronosticos del ingenuo
+pronosticos_ingenuo2 <- modelo_ingenuo_2$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos ingenuos:", round(pronosticos_ingenuo2, 4), "\n"
+)
+
+```
+
+El método ingenuo pronostica que durante las próximas seis semanas se
+mantendrán 416 cientos de clientes registrados, es decir, 41.600
+clientes cada semana. Esto ocurre porque el método ingenuo utiliza como
+pronóstico para todos los horizontes el último valor observado en el
+tramo de estimación.
+
+##### Doble Media Móvil
+
+```{r}
+# K optimo
+rejilla_k <- 3:12
+
+opt_dmm_2 <- optimizar(
+  y = y2_est,
+  metodo = "dmm",
+  rejilla = rejilla_k
+)
+
+opt_dmm_2$rejilla
+
+```
+
+```{r}
+# Graficar k optimo
+graficar_optimizacion(
+  opt_dmm_2,
+  parametro = "k",
+  titulo = "Optimización de la doble media móvil - Serie 2"
+)
+```
+
+```{r}
+# Ajustar DMM con k optimo
+k_opt_2 <- opt_dmm_2$optimo$k
+
+modelo_dmm_2 <- ajustar_dmm(y2_est, k_opt_2)
+
+```
+
+```{r}
+# Pronosticos
+pronosticos_dmm2 <- modelo_dmm_2$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos DMM:", round(pronosticos_dmm2, 4), "\n"
+)
+```
+
+El método de doble media móvil (DMM), con una ventana de $k=6$,
+pronostica que los clientes registrados pasarán de 41.455,56 clientes en
+la primera semana a aproximadamente 42.511,11 clientes en la sexta
+semana. La tendencia es creciente, con un aumento de alrededor de 211
+clientes por semana.
+
+##### Tendencia lineal
+
+```{r}
+# Ajustar Tendencia lineal
+modelo_tendencia_2 <- ajustar_tendencia(
+  y = y2_est,
+  tipo = "lineal",
+  corregir_sesgo = FALSE
+)
+```
+
+```{r}
+# Pronosticos
+pronosticos_tendencia2 <- modelo_tendencia_2$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos de tendencia lineal:",
+  round(pronosticos_tendencia2, 4), "\n"
+)
+
+```
+
+El modelo de tendencia lineal pronostica que los clientes registrados
+aumentarán de 40.341,53 en la primera semana a 40.669,63 en la sexta
+semana, aproximadamente. El crecimiento estimado es de unos 65,62
+clientes por semana, por lo que el modelo proyecta un aumento gradual y
+más moderado que el obtenido con la doble media móvil.
+
+::: {.panel-tabset}
+###### Prueba t de los Coeficientes
+
+Prueba de Hipótesis:
+
+$$H_0: \beta_j=0$$
+
+$$H_1: \beta_j \neq 0$$
+
+Estadístico de prueba:
+$$t = \frac{\hat{\beta}_j}{SE_{\text{robusto}}(\hat{\beta}_j)}$$
+
+Distribución bajo $H_0$:
+
+$$t \sim t_{n-3}$$
+
+Región de rechazo:
+
+$$|t|> t_{0.975, n-3}$$
+
+```{r}
+tabla_coef_2 <- modelo_tendencia_2$parametros$coeficientes
+
+tabla_coef_2$estimacion   <- round(tabla_coef_2$estimacion, 4)
+tabla_coef_2$se_ordinario <- round(tabla_coef_2$se_ordinario, 4)
+tabla_coef_2$se_robusto   <- round(tabla_coef_2$se_robusto, 4)
+tabla_coef_2$t            <- round(tabla_coef_2$t, 4)
+tabla_coef_2$valor_p      <- format.pval(tabla_coef_2$valor_p, digits = 4, eps = 0.0001)
+
+tabla_coef_2
+
+```
+
+En la prueba t se obtiene un intercepto $\beta_0=308.2652$ y una
+pendiente $\beta_1=0.6562$. El intercepto representa el valor estimado
+de la serie cuando $t=0$, mientras que la pendiente indica un aumento
+promedio de 0.6562 cientos de clientes por semana, equivalente a
+aproximadamente 65.62 clientes semanales.
+
+Al utilizar los errores estándar robustos a la autocorrelación con
+núcleo de Bartlett, se obtienen errores estándar de 0.9378 para el
+intercepto y 0.0112 para la pendiente. Los estadísticos $t$ se
+calcularon dividiendo cada coeficiente estimado entre su error estándar
+robusto: para el intercepto, $t=308.2652/0.9378\approx328.69$; para la
+pendiente, $t=0.6562/0.0112\approx58.59$. Ambos coeficientes presentan
+valores p inferiores a 0.0001, por lo que son estadísticamente
+significativos al nivel del 5 %. En particular, la significancia de la
+pendiente positiva aporta evidencia de una tendencia creciente en el
+número de clientes registrados durante el tramo de estimación.
+
+###### Revisión de los supuestos
+
+```{r}
+residuos_2 <- modelo_tendencia_2$parametros$residuos
+
+diagnostico_tendencia_2 <- validar_errores(
+  e = residuos_2,
+  m = NULL,
+  p = 2
+)
+
+```
+
+####### Correlograma
+
+```{r}
+diagnostico_tendencia_2$correlograma$grafico
+
+```
+
+El correlograma de los residuos del modelo de tendencia lineal muestra
+que las barras de la función de autocorrelación (ACF) superan
+ampliamente los límites de confianza en los primeros rezagos. Esto
+indica que el modelo de tendencia lineal no logró capturar completamente
+la estructura de la serie, por lo que los errores aún presentan una
+fuerte autocorrelación significativa y no se comportan como ruido
+blanco.
+
+####### Ljung Box
+
+Prueba de Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{m}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$
+
+Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{m} \frac{{r}_h^2}{T - h} $$
+
+Distribución
+
+$$Q \sim \chi^2_{22}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 22}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tendencia_2$ljung_box$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tendencia_2$ljung_box$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tendencia_2$ljung_box$valor_critico, 4
+  ), "\n",
+  "Valor p:", round(
+    diagnostico_tendencia_2$ljung_box$valor_p, 4
+  ), "\n"
+)
+```
+
+Como $277.3623>33.9244$ y el valor p es prácticamente cero, se rechaza
+la hipótesis nula de ausencia de autocorrelación al nivel de
+significancia del 5 %.
+
+Por tanto, existe evidencia estadística de que los errores presentan
+autocorrelación conjunta en los rezagos evaluados. Esto indica que la
+tendencia lineal no captura toda la estructura temporal de la serie de
+clientes registrados.
+
+####### Jarque Bera
+
+$$ H_0:\text{los errores tienen distribución normal} $$
+$$ H_1:\text{los errores no tienen distribución normal} $$
+
+Distribución Bajo $H_0$:
+
+$$ JB \sim \chi^2_{2} $$
+
+Estadístico de Prueba
+
+$$JB = \frac{T}{6} \left( A^2 + \frac{(K - 3)^2}{4} \right)$$
+
+Región de rechazo
+
+$$ JB>\chi^2_{0.95,2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tendencia_2$jarque_bera$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tendencia_2$jarque_bera$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tendencia_2$jarque_bera$valor_critico, 4
+  ), "\n",
+  "Valor p:", format.pval(
+    diagnostico_tendencia_2$jarque_bera$valor_p,
+    digits = 4
+  ), "\n"
+)
+```
+
+Como $1.2973<5.9915$ y el valor p es $0.5227>0.05$, no se rechaza la
+hipótesis nula de normalidad de los errores. Por tanto, no se encuentra
+evidencia estadística suficiente para afirmar que los errores no siguen
+una distribución normal.
+
+####### Durbin Watson
+
+$$ H_0:\rho=0 $$ $$ H_1:\rho\neq0 $$
+
+Estadístico de Prueba:
+
+$$ DW=\frac{\sum_{t=2}^{T}(e_t-e_{t-1})^2} {\sum_{t=1}^{T}e_t^2} $$
+
+```{r}
+diagnostico_tendencia_2$durbin_watson <-
+  durbin_watson(modelo_tendencia_2$parametros$residuos)
+
+cat(
+  "Estadístico de prueba:",
+  round(diagnostico_tendencia_2$durbin_watson$estadistico, 4), "\n",
+  "d aprox:",
+  round(diagnostico_tendencia_2$durbin_watson$d_aprox, 4), "\n",
+  "dL:",
+  round(diagnostico_tendencia_2$durbin_watson$dL, 4), "\n",
+  "dU:",
+  round(diagnostico_tendencia_2$durbin_watson$dU, 4), "\n"
+)
+
+```
+
+El valor del estadístico de Durbin-Watson (aproximadamente 0.6977) es
+significativamente menor que el límite inferior ($d_L = 1.6629$). Por lo
+tanto, se rechaza la hipótesis nula de no autocorrelación y se concluye
+que existe una fuerte autocorrelación positiva en los errores del modelo
+de tendencia lineal, lo que indica que los residuos no son
+independientes y que el modelo no logró explicar toda la estructura
+sistemática de la serie.
+:::
+
+##### Tendencia exponencial
+
+```{r}
+# Ajustar Tendencia Cuadrática
+modelo_tendencia_exp <- ajustar_tendencia(
+  y = y2_est,
+  tipo = "exponencial",
+  corregir_sesgo = TRUE
+)
+```
+
+```{r}
+# Pronosticos
+pronosticos_tendencia_exp <- modelo_tendencia_exp$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos de tendencia exponencial:",
+  round(pronosticos_tendencia_exp, 4), "\n"
+)
+
+```
+
+El modelo pronostica que los clientes registrados aumentarán de
+aproximadamente 40.561 a 40.937 clientes durante las próximas seis
+semanas. Los pronósticos muestran un crecimiento gradual: pasan de
+405.6068 a 409.3681 cientos de clientes, con incrementos semanales
+ligeramente crecientes.
+
+::: {.panel-tabset}
+###### Prueba t de los Coeficientes
+
+Prueba de Hipótesis:
+
+$$H_0: \beta_j=0$$
+
+$$H_1: \beta_j \neq 0$$
+
+Estadístico de prueba:
+$$t = \frac{\hat{\beta}_j}{SE_{\text{robusto}}(\hat{\beta}_j)}$$
+
+Distribución bajo $H_0$:
+
+$$t \sim t_{n-3}$$
+
+Región de rechazo:
+
+$$|t|> t_{0.975, n-3}$$
+
+```{r}
+tabla_coef_exp <- modelo_tendencia_exp$parametros$coeficientes
+
+tabla_coef_exp$estimacion   <- round(tabla_coef_exp$estimacion, 4)
+tabla_coef_exp$se_ordinario <- round(tabla_coef_exp$se_ordinario, 4)
+tabla_coef_exp$se_robusto   <- round(tabla_coef_exp$se_robusto, 4)
+tabla_coef_exp$t            <- round(tabla_coef_exp$t, 4)
+tabla_coef_exp$valor_p      <- format.pval(tabla_coef_exp$valor_p, digits = 4, eps = 0.0001)
+
+tabla_coef_exp
+
+```
+
+La tendencia exponencial estimada presenta un intercepto en escala
+logarítmica de $a_{\log}=5.7376$ y un coeficiente de crecimiento
+$\theta=0.0018$. El valor positivo de $\theta$ indica que la serie
+presenta una tendencia creciente. En términos del modelo exponencial,
+esto corresponde a un crecimiento aproximado del 0.18 % por semana, pues
+$e^{0.0018}-1\approx 0.0018$.
+
+Al considerar los errores estándar robustos a la autocorrelación con
+núcleo de Bartlett, se observa que el error estándar del intercepto es
+aproximadamente $0.005$ y el de $\theta$ es $0.0001$. Los estadísticos
+$t$ se calculan dividiendo cada coeficiente entre su error estándar
+robusto: para el intercepto, $5.7376/0.005\approx1147.52$, y para el
+crecimiento, $0.0018/0.0001=18$. Estos cálculos son aproximados porque
+los valores de la tabla están redondeados. Según la tabla, ambos
+coeficientes tienen valores p inferiores a 0.0001, por lo que son
+estadísticamente significativos al 5 %.
+
+En conclusión, hay evidencia de una tendencia exponencial creciente en
+los clientes registrados durante el tramo de estimación.
+
+###### Revisión de los supuestos
+
+```{r}
+residuos_exp <- modelo_tendencia_exp$parametros$residuos
+
+diagnostico_tendencia_exp <- validar_errores(
+  e = residuos_exp,
+  m = NULL,
+  p = 2
+)
+
+```
+
+####### Correlograma
+
+```{r}
+diagnostico_tendencia_exp$correlograma$grafico
+```
+
+El correlograma de los residuos del modelo de tendencia exponencial
+muestra que las barras del ACF y PACF sobresalen de forma clara por
+encima de los límites de las líneas de confianza en los primeros
+rezagos. Esto indica que el modelo de tendencia exponencial no logró
+capturar completamente toda la estructura de la serie, por lo que los
+errores mantienen una autocorrelación significativa y no se comportan
+como ruido blanco.
+
+####### Ljung Box
+
+Prueba de Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{m}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$
+
+Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{m} \frac{{r}_h^2}{T - h} $$
+
+Distribución
+
+$$Q \sim \chi^2_{22}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 22}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tendencia_exp$ljung_box$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tendencia_exp$ljung_box$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tendencia_exp$ljung_box$valor_critico, 4
+  ), "\n",
+  "Valor p:", round(
+    diagnostico_tendencia_exp$ljung_box$valor_p, 4
+  ), "\n"
+)
+
+```
+
+Como $269.2201>33.9244$, se rechaza la hipótesis nula de ausencia de
+autocorrelación.
+
+Por tanto, hay evidencia estadística de autocorrelación conjunta en los
+errores. Esto indica que la tendencia exponencial no captura toda la
+estructura temporal de la serie de clientes registrados.
+
+####### Jarque Bera
+
+$$ H_0:\text{los errores tienen distribución normal} $$
+$$ H_1:\text{los errores no tienen distribución normal} $$
+
+Distribución Bajo $H_0$:
+
+$$ JB \sim \chi^2_{2} $$
+
+Estadístico de Prueba
+
+$$JB = \frac{T}{6} \left( A^2 + \frac{(K - 3)^2}{4} \right)$$
+
+Región de rechazo
+
+$$ JB>\chi^2_{0.95,2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tendencia_exp$jarque_bera$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tendencia_exp$jarque_bera$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tendencia_exp$jarque_bera$valor_critico, 4
+  ), "\n",
+  "Valor p:", format.pval(
+    diagnostico_tendencia_exp$jarque_bera$valor_p,
+    digits = 4
+  ), "\n"
+)
+
+```
+
+Como $2.1463<5.9915$ y el valor p es $0.3419>0.05$, no se rechaza la
+hipótesis nula de normalidad de los residuos al nivel de significancia
+del 5 %.
+
+####### Durbin Watson
+
+$$ H_0:\rho=0 $$ $$ H_1:\rho\neq0 $$
+
+Estadístico de Prueba:
+
+$$ DW=\frac{\sum_{t=2}^{T}(e_t-e_{t-1})^2} {\sum_{t=1}^{T}e_t^2} $$
+
+```{r}
+diagnostico_tendencia_exp$durbin_watson <-
+  durbin_watson(modelo_tendencia_exp$parametros$residuos)
+
+cat(
+  "Estadístico de prueba:",
+  round(diagnostico_tendencia_exp$durbin_watson$estadistico, 4), "\n",
+  "d aprox:",
+  round(diagnostico_tendencia_exp$durbin_watson$d_aprox, 4), "\n",
+  "dL:",
+  round(diagnostico_tendencia_exp$durbin_watson$dL, 4), "\n",
+  "dU:",
+  round(diagnostico_tendencia_exp$durbin_watson$dU, 4), "\n"
+)
+
+```
+
+El valor del estadístico de Durbin-Watson ($d \approx 0.6932$) se
+encuentra muy por debajo del límite inferior ($d_L = 1.6629$). Por lo
+tanto, se rechaza la hipótesis nula y se concluye que existe una fuerte
+autocorrelación positiva en los errores del modelo de tendencia
+exponencial, lo que confirma que los residuos no son independientes y
+que el modelo no logró capturar adecuadamente la estructura de los
+datos.
+:::
+
+##### Holt Lineal
+
+```{r}
+# Alfa y Beta optimos
+rejilla_holt <- seq(0.05, 0.95, by = 0.05)
+
+opt_holt_2 <- optimizar(
+  y = y2_est,
+  metodo = "holt",
+  rejilla = rejilla_holt
+)
+
+opt_holt_2$rejilla
+
+```
+
+```{r}
+# Graficar alfa, beta optimos
+graficar_holt(opt_holt_2)
+```
+
+```{r}
+# Ajustar el modelo
+alpha_opt_2 <- opt_holt_2$optimo$alpha
+beta_opt_2 <- opt_holt_2$optimo$beta
+
+modelo_holt_2 <- ajustar_holt(
+  y2_est,
+  alpha_opt_2,
+  beta_opt_2
+)
+```
+
+```{r}
+# Pronosticos
+pronosticos_holt2 <- modelo_holt_2$pronosticar(h)
+
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronósticos Holt:", round(pronosticos_holt2, 4), "\n"
+)
+
+```
+
+El modelo de Holt pronostica que los clientes registrados aumentarán de
+aproximadamente 41.296 a 41.846 clientes durante las próximas seis
+semanas. Los pronósticos pasan de 412.9599 a 418.4572 cientos de
+clientes, con un incremento cercano a 109.95 clientes por semana, lo que
+refleja una tendencia creciente aproximadamente constante.
+
+##### Media Móvil (Contraste)
+
+```{r}
+# Optimización de la ventana de la media móvil
+resultado_opt_mm <- optimizar(
+  y = y2_est,
+  metodo = "mm",
+  rejilla = 2:12
+)
+```
+
+```{r}
+resultado_opt_mm$rejilla
+```
+
+```{r}
+#Gráfica de optimización
+grafico_opt_mm <- graficar_optimizacion(
+  resultado = resultado_opt_mm,
+  parametro = "k",
+  titulo = "Optimización de la ventana de media móvil - Serie 2"
+)
+grafico_opt_mm
+
+```
+
+```{r}
+# Ajuste de la media móvil con el k óptimo
+modelo_mm2 <- ajustar_mm(
+  y = y2_est,
+  k = resultado_opt_mm$optimo$k
+)
+```
+
+```{r}
+# Pronóstico de las semanas de validación
+pronosticos_mm2 <- modelo_mm2$pronosticar(h)
+```
+
+```{r}
+cat(
+  "Horizonte de validación (h):", h, "\n",
+  "Pronóstico constante:", round(pronosticos_mm2[1], 4), "\n"
+)
+```
+
+El método de media móvil, utilizado como contraste para la serie 2,
+produce un pronóstico constante de 411 cientos de clientes, equivalente
+a 41.100 clientes por semana durante las seis semanas del horizonte de
+validación. El pronóstico permanece igual en todos los horizontes porque
+el método utiliza el promedio de una ventana de observaciones recientes
+y lo mantiene constante para el futuro.
+
+
+#### Medidas de error
+
+```{r}
+eval_s2_ing       <- origen_movil(serie2$y, fn_ajuste = ajustar_ingenuo, H = 6, n_eval = 36, s = 1)
+
+eval_s2_dmm       <- origen_movil(serie2$y, fn_ajuste = ajustar_dmm, H = 6, n_eval = 36, s = 1, k = opt_dmm_2$optimo$k)
+
+eval_s2_lin       <- origen_movil(serie2$y, fn_ajuste = ajustar_tendencia, H = 6, n_eval = 36, s = 1, tipo = "lineal")
+
+eval_s2_exp       <- origen_movil(serie2$y, fn_ajuste = ajustar_tendencia, H = 6, n_eval = 36, s = 1, tipo =
+                                    "exponencial")
+
+eval_s2_holt      <- origen_movil(serie2$y, fn_ajuste = ajustar_holt, H = 6, n_eval = 36, s = 1, alpha =
+                                    opt_holt_2$optimo$alpha, beta = opt_holt_2$optimo$beta)
+
+eval_s2_mm_con <- origen_movil(serie2$y, fn_ajuste = ajustar_mm, H = 6, n_eval = 36, s = 1, k = resultado_opt_mm$optimo$k)
+```
+
+```{r}
+# Errores para h = 1
+
+tabla_s2_h1 <- tibble(
+  `Método de Pronóstico` = c(
+    "Referente Ingenuo (Simple)", 
+    "Doble Media Móvil (DMM)", 
+    "Tendencia Lineal MCO", 
+    "Tendencia Exponencial MCO", 
+    "Holt Lineal", 
+    "Contraste: Media Movil (MM)"
+  ),
+  RMSE = c(
+    eval_s2_ing$h1$RMSE, 
+    eval_s2_dmm$h1$RMSE, 
+    eval_s2_lin$h1$RMSE, 
+    eval_s2_exp$h1$RMSE, 
+    eval_s2_holt$h1$RMSE, 
+    eval_s2_mm_con$h1$RMSE
+  ),
+  MAD = c(
+    eval_s2_ing$h1$MAD, 
+    eval_s2_dmm$h1$MAD, 
+    eval_s2_lin$h1$MAD, 
+    eval_s2_exp$h1$MAD, 
+    eval_s2_holt$h1$MAD, 
+    eval_s2_mm_con$h1$MAD
+  ),
+  `MAPE (%)` = c(
+    eval_s2_ing$h1$MAPE, 
+    eval_s2_dmm$h1$MAPE, 
+    eval_s2_lin$h1$MAPE, 
+    eval_s2_exp$h1$MAPE, 
+    eval_s2_holt$h1$MAPE, 
+    eval_s2_mm_con$h1$MAPE
+  )
+) %>% 
+  arrange(RMSE) %>% 
+  mutate(
+    RMSE = round(RMSE, 3),
+    MAD  = round(MAD, 3),
+    `MAPE (%)` = round(`MAPE (%)`, 3)
+  )
+
+
+kable(
+  tabla_s2_h1,
+  align = "lccc",
+  caption = "Serie 2: Medidas de error para horizonte h = 1 (Origen Móvil)",
+  booktabs = TRUE
+)
+
+```
+
+Al evaluar el desempeño de los métodos a un horizonte de $1$ paso hacia adelante, el Holt Lineal logra el mejor rendimiento para la Serie 2. Presenta las métricas de error más bajas de la tabla, con un RMSE de $4.38$, una MAD de $3.45$ y un MAPE de apenas $0.826\%$. En términos prácticos, esto significa que la predicción de Holt se equivoca en promedio menos del $1\%$ respecto al valor real de la serie, desviándose aproximadamente $3.45$ unidades del dato verdadero. Esto demuestra que su ajuste de nivel y tendencia responde muy bien en el corto plazo.
+
+En segundo lugar se posiciona el Referente Ingenuo con un MAPE de $0.900\%$ y una desviación promedio de $3.75$ unidades (MAD). Su cercanía con el primer lugar confirma que, para predecir solo $1$ periodo en el futuro, tomar el último dato observado es una táctica sumamente efectiva y difícil de superar.
+
+Después está la Media Móvil (MM), con un MAPE de $0.930\%$, una MAD de $3.89$ y un RMSE de $4.72$. Este método presenta resultados competitivos, con errores inferiores al $1\%$ en términos porcentuales, aunque queda ligeramente por detrás del modelo de Holt y del Referente Ingenuo. A continuación, se ubica la Tendencia Exponencial MCO, con un MAPE de $0.958\%$ y una MAD de $4.01$, seguida de la Doble Media Móvil (DMM), con un MAPE de $0.995\%$ y una MAD de $4.16$. Ambos métodos ofrecen resultados sólidos, pero presentan una precisión ligeramente menor frente a los tres primeros. Por su parte, la Tendencia Lineal MCO se ubica en el sexto puesto, con un MAPE del $1.41\%$ y un error absoluto promedio de $5.92$ unidades (RMSE de $6.84$). Esto muestra que la línea recta determinista resulta menos precisa para capturar el comportamiento de la serie en comparación con los métodos de suavizamiento y la tendencia exponencial.
+
+```{r}
+# Errores para h = 6
+tabla_s2_h6 <- tibble(
+  `Método de Pronóstico` = c(
+    "Referente Ingenuo (Simple)", 
+    "Doble Media Móvil (DMM)", 
+    "Tendencia Lineal MCO", 
+    "Tendencia Exponencial MCO", 
+    "Holt Lineal", 
+    "Contraste: Media Movil (MM)"
+  ),
+  RMSE = c(
+    eval_s2_ing$hH$RMSE, 
+    eval_s2_dmm$hH$RMSE, 
+    eval_s2_lin$hH$RMSE, 
+    eval_s2_exp$hH$RMSE, 
+    eval_s2_holt$hH$RMSE, 
+    eval_s2_mm_con$hH$RMSE
+  ),
+  MAD = c(
+    eval_s2_ing$hH$MAD, 
+    eval_s2_dmm$hH$MAD, 
+    eval_s2_lin$hH$MAD, 
+    eval_s2_exp$hH$MAD, 
+    eval_s2_holt$hH$MAD, 
+    eval_s2_mm_con$hH$MAD
+  ),
+  `MAPE (%)` = c(
+    eval_s2_ing$hH$MAPE, 
+    eval_s2_dmm$hH$MAPE, 
+    eval_s2_lin$hH$MAPE, 
+    eval_s2_exp$hH$MAPE, 
+    eval_s2_holt$hH$MAPE, 
+    eval_s2_mm_con$hH$MAPE
+  )
+) %>% 
+  arrange(RMSE) %>% 
+  mutate(
+    RMSE = round(RMSE, 3),
+    MAD  = round(MAD, 3),
+    `MAPE (%)` = round(`MAPE (%)`, 3)
+  )
+
+
+kable(
+  tabla_s2_h6,
+  align = "lccc",
+  caption = "Serie 2: Medidas de error para horizonte h = 6 (Origen Móvil)",
+  booktabs = TRUE
+)
+```
+
+Al ampliar el horizonte de evaluación a $6$ pasos hacia adelante, la Tendencia Exponencial MCO toma el primer lugar como el modelo más preciso para la Serie 2. Registra las métricas de error más bajas, con un RMSE de $4.91$, una MAD de $3.91$ y un MAPE de $0.925\%$. En términos prácticos, esto significa que al proyectar $6$ periodos en el futuro, la tendencia exponencial logra generar pronósticos cercanos a los valores reales, con un error porcentual promedio inferior al $1\%$ y una desviación absoluta promedio de aproximadamente $3.91$ unidades.
+
+El Holt Lineal pasa al segundo lugar, con un RMSE de $5.66$, una MAD de $4.44$ y un MAPE de $1.06\%$. Aunque presenta un desempeño competitivo, sus métricas de error son superiores a las de la Tendencia Exponencial MCO. Esto indica que, para este horizonte de pronóstico, la tendencia exponencial logra una mayor precisión.
+
+En un bloque intermedio se ubican la Tendencia Lineal MCO (MAPE del $1.49\%$ y MAD de $6.34$), el Referente Ingenuo (MAPE del $1.48\%$ y MAD de $6.28$), la Media Móvil (MM) (MAPE del $1.51\%$ y MAD de $6.42$) y la Doble Media Móvil (DMM) (MAPE del $1.66\%$ y MAD de $6.98$). Estos métodos presentan errores mayores que los dos primeros. En particular, el Referente Ingenuo pierde precisión al proyectar $6$ pasos hacia adelante, ya que mantener el último valor observado como pronóstico resulta menos efectivo cuando aumenta el horizonte de predicción.
+
+Finalmente, la Doble Media Móvil (DMM) registra el peor desempeño entre los seis métodos evaluados, con un MAPE del $1.66\%$, una desviación absoluta promedio de $6.98$ unidades y un RMSE de $8.73$. Estos resultados indican que, para este horizonte de pronóstico, el método presenta una precisión inferior a la de las demás alternativas, especialmente en comparación con la Tendencia Exponencial MCO.
+
+### Validar Ganador
+
+El método Holt lineal presenta los menores errores para el horizonte de
+un paso ($h=1$), por lo que se selecciona como ganador para este
+horizonte.
+
+::: {.panel-tabset}
+##### Gráfico
+
+```{r}
+# Errores de Holt en origen móvil a un paso
+errores_holt_2 <- eval_s2_holt$e_h1
+
+# Validar los errores
+resultado_errores_holt_2 <- validar_errores(
+  e = errores_holt_2,
+  m = NULL,
+  p = 2
+)
+
+```
+
+```{r}
+g1_s2 <- resultado_errores_holt_2$grafico_errores
+g2_s2 <- resultado_errores_holt_2$correlograma$grafico
+
+g1_s2 | g2_s2
+```
+
+El gráfico muestra que los errores de pronóstico del modelo de Holt oscilan
+de manera aleatoria alrededor de la línea cero, lo que indica que las
+predicciones no presentan un sesgo sistemático.
+
+
+El correlograma de los errores del modelo de Holt lineal muestra que
+todos los rezagos de la ACF y PACF se encuentran dentro de las bandas.
+Esto indica que los residuos se comportan como ruido blanco, lo que
+significa que no existe autocorrelación significativa y que el modelo
+capturó adecuadamente la estructura de los datos.
+
+##### Prueba t
+
+Prueba de Hipótesis
+
+$$H_0: \mu_e = 0$$ $$H_1: \mu_e \neq 0$$
+
+Estadístico de Prueba:
+
+$$t = \frac{\bar{e}}{s_e / \sqrt{36}}$$
+
+Distribución bajo $H_0$
+
+$$t \sim t_{35}$$
+
+Región de Rechazo
+
+$$|t| > t_{0.975,\,35}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(resultado_errores_holt_2$t, 4), "\n",
+  "Grados de libertad:", resultado_errores_holt_2$grados_libertad_t, "\n",
+  "Valor crítico:", round(
+    qt(0.975, resultado_errores_holt_2$grados_libertad_t), 4
+  ), "\n",
+  "Valor p:", round(resultado_errores_holt_2$valor_p_t, 4), "\n"
+)
+
+```
+
+Con un valor $p$ de $0.6049$ no se rechaza la hipótesis nula, se
+concluye que la media de los errores del modelo de Holt lineal es
+estadísticamente igual a cero, lo que confirma que las predicciones del
+modelo no presentan sesgo sistemático.
+
+##### Ljung Box
+
+Prueba de Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{7}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$
+
+Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{7} \frac{{r}_h^2}{T - h} $$
+
+Distribución
+
+$$Q \sim \chi^2_{7}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 7}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    resultado_errores_holt_2$ljung_box$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", resultado_errores_holt_2$ljung_box$grados_libertad, "\n",
+  "Valor crítico:", round(
+    resultado_errores_holt_2$ljung_box$valor_critico, 4
+  ), "\n",
+  "Valor p:", round(
+    resultado_errores_holt_2$ljung_box$valor_p, 4
+  ), "\n"
+)
+```
+
+Como el valor p \> 0.05, no se rechaza la hipótesis nula de ausencia de
+autocorrelación en los errores. Por tanto, no se encuentra evidencia
+estadística de autocorrelación significativa en los errores de Holt
+lineal para los rezagos evaluados.
+
+##### Jarque Bera
+
+Prueba de Hipótesis
+
+$$ H_0:\text{los errores tienen distribución normal} $$
+$$ H_1:\text{los errores no tienen distribución normal} $$
+
+Distribución Bajo $H_0$:
+
+$$ JB \sim \chi^2_{2} $$
+
+Estadístico de Prueba
+
+$$JB = \frac{T}{6} \left( A^2 + \frac{(K - 3)^2}{4} \right)$$
+
+Región de rechazo
+
+$$ JB>\chi^2_{0.95,2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    resultado_errores_holt_2$jarque_bera$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", resultado_errores_holt_2$jarque_bera$grados_libertad, "\n",
+  "Valor crítico:", round(
+    resultado_errores_holt_2$jarque_bera$valor_critico, 4
+  ), "\n",
+  "Valor p:", format.pval(
+    resultado_errores_holt_2$jarque_bera$valor_p,
+    digits = 4
+  ), "\n"
+)
+```
+
+Como el valor p \> 0.05, no se rechaza la hipótesis nula de normalidad.
+Por tanto, no se encuentra evidencia estadística suficiente para afirmar
+que los errores no siguen una distribución normal.
+
+##### Durbin Watson
+
+Prueba de Hipótesis:
+
+$$ H_0:\rho=0 $$ $$ H_1:\rho\neq0 $$
+
+Estadístico de Prueba:
+
+$$ DW=\frac{\sum_{t=2}^{T}(e_t-e_{t-1})^2} {\sum_{t=1}^{T}e_t^2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:",
+  round(resultado_errores_holt_2$durbin_watson$estadistico, 4), "\n",
+  "d aprox:",
+  round(resultado_errores_holt_2$durbin_watson$d_aprox, 4), "\n",
+  "dL:",
+  round(resultado_errores_holt_2$durbin_watson$dL, 4), "\n",
+  "dU:",
+  round(resultado_errores_holt_2$durbin_watson$dU, 4), "\n"
+)
+```
+
+El valor del estadístico de Durbin-Watson (aproximadamente $1.8132$) es
+mayor que el límite superior ($d_U = 1.4439$). Por lo tanto, no se
+rechaza de la hipótesis nula, lo que indica que no hay evidencia
+estadística suficiente para afirmar que existe autocorrelación de primer
+orden en los errores del modelo.
+:::
+
+#### Pronóstico Final
+
+```{r}
+T_2 <- length(serie2$y)
+H_2 <- 6
+
+# Ajustar Holt usando toda la serie 2
+modelo_final_2 <- ajustar_holt(
+  serie2$y,
+  alpha = opt_holt_2$optimo$alpha,
+  beta = opt_holt_2$optimo$beta
+)
+
+# Pronósticos de las H semanas siguientes
+pronosticos_finales_2 <- modelo_final_2$pronosticar(H_2)
+
+# Desviación estándar de los errores para cada horizonte
+desv_errores_2 <- sapply(1:6, function(h) {
+  errores <- eval_s2_holt$todos$error[
+    eval_s2_holt$todos$h == h
+  ]
+  sd(errores)
+})
+
+# Datos para el gráfico
+grafico_final_2 <- data.frame(
+  tiempo = 1:(T_2 + H_2),
+  real = c(serie2$y, rep(NA, H_2)),
+  ajuste = c(
+    modelo_final_2$yhat,
+    rep(NA, H_2)
+  ),
+  pronostico = c(
+    rep(NA, T_2),
+    pronosticos_finales_2
+  ),
+  inferior = c(
+    rep(NA, T_2),
+    pronosticos_finales_2 - 1.96 * desv_errores_2
+  ),
+  superior = c(
+    rep(NA, T_2),
+    pronosticos_finales_2 + 1.96 * desv_errores_2
+  )
+)
+
+# Gráfico final
+ggplot2::ggplot(
+  grafico_final_2,
+  ggplot2::aes(x = tiempo)
+) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = real),
+    color = "purple"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = ajuste),
+    color = "green"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = pronostico),
+    color = "green"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = inferior),
+    color = "black",
+    linetype = "dotted"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = superior),
+    color = "black",
+    linetype = "dotted"
+  ) +
+  ggplot2::geom_vline(
+    xintercept = T_2,
+    color = "red",
+    linetype = "dashed"
+  ) +
+  ggplot2::labs(
+    title = "Serie 2: ajuste y pronóstico final de Holt",
+    subtitle = "Límites heurísticos de ±1,96 desviaciones estándar",
+    x = "Semana",
+    y = "Valor cientos de clientes"
+  ) +
+  ggplot2::theme_minimal()
+```
+
+El gráfico muestra la evolución semanal de la cantidad de clientes, expresada en cientos. Se observa una tendencia creciente, pues los valores pasan de aproximadamente 300 a más de 430 cientos de clientes a lo largo del periodo. La línea verde representa el ajuste del modelo de Holt, que sigue de cerca los datos originales en morado. Al final, se presenta el pronóstico para las siguientes semanas, junto con los límites que muestran el rango posible de variación de los valores futuros.
+
+```{r}
+# Pronostico de los ultimos 
+ganador_s2 <- "Holt Lineal"
+fn_s2 <- function(y) ajustar_holt(y, alpha = opt_holt_2$optimo$alpha, beta = opt_holt_2$optimo$beta)
+
+final_s2 <- pronostico_final(
+  y = serie2$y, fechas = serie2$fecha, fn = fn_s2, H = 6, n_eval = 36, paso = 7,
+  titulo = paste0("Serie 2: pronóstico final a 6 semanas (", ganador_s2, ")"),
+  unidad = attr(serie2, "unidad")
+)
+
+final_s2$grafico
+```
+
+```{r}
+tabla_final(final_s2, "Serie 2: Pronóstico final y banda heurística")
+```
+
+
+El método ganador a un paso $(h = 1)$ para la Serie 2 es Holt Lineal. Reajustado con las 180 observaciones, pronostica para las próximas 6 semanas entre 437 y 440.9 cientos de clientes. Respecto al tope de 450 cientos (45.000 usuarios) de la licencia actual, el pronóstico puntual no alcanza el tope de 450 cientos dentro de las 6 semanas, y el límite superior de la banda lo alcanza desde h = 4. Como el proveedor tarda exactamente 6 semanas en activar el nuevo bloque, esta lectura es la que sustenta la decisión de pedirlo de inmediato o esperar; la banda, por ser heurística, indica la incertidumbre aproximada y no una probabilidad exacta de superar el tope.
+
+
+#### Conclusión
+
+La serie 2 tiene una tendencia creciente casi lineal y no se le atribuye estacionalidad: los clientes registrados van de 300 a 440 cientos de clientes y su ACF parte en r₁ = 0,974 y decae lentamente. En la serie diferenciada, r₄ = 0,020 y r₅₂ = −0,030 quedan dentro de la banda de ±0,146, y los rezagos 13 y 26 (0,183 y 0,180) la superan por poco, sin repetirse en múltiplos. Una primera diferencia la vuelve plausiblemente estacionaria: la varianza baja de 1.365,55 a 19,82 y r₁ pasa a −0,332, mientras que una segunda diferencia la sube a 53,04 y lleva r₁ a −0,580, señal de diferencia de más. En el origen móvil (144 observaciones de estimación, 36 orígenes en h = 1 y 31 en h = 6), el mejor método en h = 1 es Holt con α = 0,30 y β = 0,05 (RMSE 4,17 cientos de clientes, unos 417 clientes; MAD 3,29; MAPE 0,78 %), que reduce 4,78 % el RMSE del ingenuo simple, referente porque no hay estacionalidad (4,38). En h = 6 el mejor es la tendencia exponencial (log y = 5,7376 + 0,0018·t, un crecimiento de 0,18 % semanal), con RMSE 4,26, MAD 3,43 y MAPE 0,81 %, 39,1 % menos que el referente (7,00) y 23,5 % menos que Holt (5,57). A un paso la exponencial es peor que el referente (4,66 frente a 4,38), y la media móvil (4,43) tampoco lo supera. Los errores de Holt a un paso no muestran problemas: la media no difiere de cero (t = −0,52; p = 0,605), Ljung–Box no encuentra autocorrelación (Q = 6.3014), Jarque–Bera no rechaza la normalidad (JB = 0,75; p = 0,687), Durbin–Watson da d = 1,773 (r₁ ≈ 0,09) y ningún rezago del correlograma sale de la banda. Lo que queda sin aprovechar es que el error crece con el horizonte (la desviación pasa de 4,21 a 5,60) y que, a seis semanas, la tendencia exponencial supera a Holt, lo que sugiere que el crecimiento es más estable que el nivel que Holt va ajustando.
+
+Los pronósticos de Holt para las próximas seis semanas son 437,03; 437,80; 438,57; 439,34; 440,11 y 440,88 cientos de clientes (unos 43.703 a 44.088 clientes). La banda heurística de ±1,96 desviaciones de los errores de origen móvil, que no es un intervalo de confianza, va de 428,78 a 445,28 en la semana 1 y de 429,91 a 451,86 en la semana 6.Respondiendo a la pregunta del área de tecnología, la capacidad licenciada de 45.000 clientes (450 en la unidad de la serie) no se agotaría en las próximas seis semanas según el pronóstico puntual, con un margen de unos 912 clientes, pero el límite superior de la banda llega a 450,02 en la semana 4 y a 451,86 en la semana 6, así que no puede descartarse. Con la pendiente de Holt (unos 77 clientes por semana), el pronóstico puntual alcanzaría los 45.000 hacia la semana 18. Esta es una extrapolación fuera del horizonte evaluado. Como la ampliación tarda seis semanas en activarse, la compra tendría que decidirse a más tardar hacia la semana 12, y un bloque de 5.000 clientes cubriría unas 65 semanas más de crecimiento al mismo ritmo, por lo que bastaría un bloque.
+
+:::
+
+### Serie 3: Ventas diarias de un supermercado de barrio
+
+::: {.panel-tabset}
+
+##### Media Simple
+
+```{r}
+# Tramo de estimación
+y3_est <- serie3$y[1:n0_3]
+h_3 <- particion$H[3]
+```
+
+```{r}
+#Ajustar Media Simple
+modelo_ms <- ajustar_media(
+  y3_est
+)
+```
+
+```{r}
+#Pronósticos
+pronosticos_ms <- modelo_ms$pronosticar(h_3)
+```
+
+```{r}
+cat(
+  "Horizonte de validación (h):", h_3, "\n",
+  "Pronóstico constante:", round(pronosticos_ms[1], 7), "\n"
+)
+```
+
+Para la Serie 3: Ventas diarias del supermercado, el modelo de media
+simple pronostica un valor constante de 400.3327 millones de pesos
+diarios para cada uno de los próximos 7 días.
+
+##### Ingenuo Estacional
+
+```{r}
+modelo_ingenuo_3 <- ajustar_ingenuo_estacional(y3_est, 7)
+```
+
+```{r}
+# Pronosticos del ingenuo estacional
+pronosticos_ingenuo3 <- modelo_ingenuo_3$pronosticar(h_3)
+
+cat(
+  "Horizonte de validación (h):", h_3, "\n",
+  "Pronósticos ingenuo estacional:", round(pronosticos_ingenuo3, 7), "\n"
+)
+```
+
+El método ingenuo estacional genera pronósticos diferentes para los
+próximos siete días, con valores entre 396.4 y 482.4 millones de pesos.
+A diferencia de la media simple, este método conserva el patrón de
+ventas de la semana anterior, por lo que permite reflejar posibles
+diferencias entre los días de la semana.
+
+##### Media Móvil
+
+```{r}
+# Optimización de la ventana de la media móvil
+resultado_opt_3 <- optimizar(
+  y = y3_est,
+  metodo = "mm",
+  rejilla = 2:12
+)
+```
+
+```{r}
+resultado_opt_3$rejilla
+```
+
+```{r}
+#Gráfica de optimización
+grafico_opt_3 <- graficar_optimizacion(
+  resultado = resultado_opt_3,
+  parametro = "k",
+  titulo = "Optimización de la ventana de media móvil - Serie 3"
+)
+
+grafico_opt_3
+```
+
+```{r}
+# Ajuste de la media móvil con el k óptimo
+modelo_mm3 <- ajustar_mm(
+  y = y3_est,
+  k = resultado_opt_3$optimo$k
+)
+
+
+# Pronóstico 
+pronosticos_mm3 <- modelo_mm3$pronosticar(h_3)
+```
+
+```{r}
+cat(
+  "Horizonte de validación (h):", h_3, "\n",
+  "Pronóstico constante:", round(pronosticos_mm3[1], 7), "\n"
+)
+```
+
+El método de media móvil, utilizando una ventana de $k=8$ observaciones,
+produce un pronóstico constante de 419.8375 millones de pesos diarios
+para cada uno de los próximos siete días. Este valor se calcula a partir
+de las últimas ocho observaciones disponibles y permite estimar el nivel
+reciente de las ventas.
+
+##### Suavizamiento Exponencial Simple
+
+```{r}
+resultado_opt_ses3 <- optimizar(
+  y = y3_est,
+  metodo = "ses",
+  rejilla = seq(0.02, 0.98, by = 0.1)
+)
+
+resultado_opt_ses3$rejilla
+```
+
+```{r}
+grafico_opt_ses3 <- graficar_optimizacion(
+  resultado = resultado_opt_ses3,
+  parametro = "alpha",
+  titulo = "Optimización de alpha - Serie 3"
+)
+
+grafico_opt_ses3
+```
+
+```{r}
+modelo_ses3 <- ajustar_ses(
+  y = y3_est,
+  alpha = resultado_opt_ses3$optimo$alpha
+)
+
+pronosticos_ses3 <- modelo_ses3$pronosticar(h_3)
+
+cat(
+  "Horizonte de validación (h):", h_3, "\n",
+  "Alpha óptimo:", resultado_opt_ses3$optimo$alpha, "\n",
+  "Pronóstico constante:", round(pronosticos_ses3[1], 7), "\n"
+)
+```
+
+El método SES, con un parámetro de suavización óptimo de $\alpha=0.12$,
+genera un pronóstico constante de 418.204 millones de pesos diarios para
+cada uno de los próximos siete días.
+
+##### Tendencia con ficticias de suma cero
+
+```{r}
+modelo_tf3 <- ajustar_tendencia_estacional(y3_est, 7)
+```
+
+```{r}
+pronosticos_tf3 <- modelo_tf3$pronosticar(h_3)
+
+cat(
+  "Horizonte de validación (h):", h_3, "\n",
+  "Pronóstico Tendencia ficticia:", round(pronosticos_tf3[1:7], 7), "\n"
+)
+```
+
+El método produce pronósticos variables para los próximos siete días,
+que oscilan entre 382.3461 y 476.6786 millones de pesos diarios. A
+diferencia de los métodos que generan un pronóstico constante, este
+método permite obtener valores distintos para cada día del horizonte de
+validación.
+
+::: {.panel-tabset}
+###### Prueba t de los Coeficientes
+
+Prueba de Hipótesis:
+
+$$H_0: \beta_j=0$$
+
+$$H_1: \beta_j \neq 0$$
+
+Estadístico de prueba:
+$$t = \frac{\hat{\beta}_j}{SE_{\text{robusto}}(\hat{\beta}_j)}$$
+Distribución bajo $H_0$:
+
+$$t \sim t_{n-3}$$
+
+Región de rechazo:
+
+$$|t|> t_{0.975, n-3}$$
+
+```{r}
+tabla_coef_tf3 <- modelo_tf3$parametros$coeficientes
+
+tabla_coef_tf3$estimacion   <- round(tabla_coef_tf3$estimacion, 4)
+tabla_coef_tf3$se_ordinario <- round(tabla_coef_tf3$se_ordinario, 4)
+tabla_coef_tf3$se_robusto   <- round(tabla_coef_tf3$se_robusto, 4)
+tabla_coef_tf3$t            <- round(tabla_coef_tf3$t, 4)
+tabla_coef_tf3$valor_p      <- format.pval(tabla_coef_tf3$valor_p, digits = 4, eps = 0.0001)
+
+tabla_coef_tf3
+```
+
+El modelo Tendencia con Ficticias presenta una tendencia creciente en
+las ventas, con un aumento estimado de 0.1778 millones de pesos diarios.
+Además, las variables ficticias muestran diferencias significativas
+entre los días de la semana respecto al día de referencia. Las pruebas
+t, calculadas con errores estándar robustos a la autocorrelación
+mediante el núcleo de Bartlett, indican que todos los coeficientes son
+estadísticamente significativos, con valores p inferiores a 0.0001. Esto
+sugiere que tanto la tendencia como el día de la semana ayudan a
+explicar el comportamiento de las ventas.
+
+###### Revisión de los supuestos
+
+```{r}
+residuos_tf3 <- modelo_tf3$parametros$residuos
+
+diagnostico_tf3 <- validar_errores(
+  e = residuos_tf3,
+  m = NULL,
+  p = 0
+)
+
+```
+
+####### Correlograma
+
+```{r}
+diagnostico_tf3$correlograma$grafico
+```
+
+En el ACF se observan autocorrelacione significativas, lo que muestra
+que los residuos del modelo están fuertemente relacionados entre sí a lo
+largo del tiempo. Por su parte, el PACF presenta un pico alto en el
+primer rezago que confirma esta persistencia en los datos. En conjunto,
+esto significa que los errores no se comportan como ruido blanco, por lo
+que el modelo de tendencia con variable ficticia no ha logrado capturar
+toda la información.
+
+####### Ljung Box
+
+Prueba de Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{m}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$
+
+Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{m} \frac{{r}_h^2}{T - h} $$
+
+Distribución
+
+$$Q \sim \chi^2_{22}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 22}$$
+
+$$ JB>\chi^2_{0.95,2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tf3$ljung_box$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tf3$ljung_box$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tf3$ljung_box$valor_critico, 4
+  ), "\n",
+  "Valor p:", round(
+    diagnostico_tf3$ljung_box$valor_p, 4
+  ), "\n"
+)
+
+```
+
+En la prueba de Ljung-Box se observa un valor p cercano a cero. Por
+tanto, se rechaza la hipótesis nula de ausencia de autocorrelación en
+los errores. Esto indica que los errores del modelo de tendencia con
+variables ficticias presentan dependencia temporal, por lo que el modelo
+no captura toda la dinámica de las ventas diarias.
+
+####### Jarque Bera
+
+$$ H_0:\text{los errores tienen distribución normal} $$
+$$ H_1:\text{los errores no tienen distribución normal} $$
+
+Distribución Bajo $H_0$:
+
+$$ JB \sim \chi^2_{2} $$
+
+Estadístico de Prueba
+
+$$JB = \frac{T}{6} \left( A^2 + \frac{(K - 3)^2}{4} \right)$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tf3$jarque_bera$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tf3$jarque_bera$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tf3$jarque_bera$valor_critico, 4
+  ), "\n",
+  "Valor p:", format.pval(
+    diagnostico_tf3$jarque_bera$valor_p,
+    digits = 4
+  ), "\n"
+)
+
+```
+
+La prueba de Jarque-Bera presenta un valor p de 0.01213. Por tanto, se
+rechaza la hipótesis nula de normalidad, lo que indica que los errores
+del modelo de tendencia con variables ficticias no siguen una
+distribución normal.
+
+####### Durbin Watson
+
+$$ H_0:\rho=0 $$ $$ H_1:\rho\neq0 $$
+
+Estadístico de Prueba:
+
+$$ DW=\frac{\sum_{t=2}^{T}(e_t-e_{t-1})^2} {\sum_{t=1}^{T}e_t^2} $$
+
+```{r}
+diagnostico_tf3$durbin_watson <-
+  durbin_watson(modelo_tf3$parametros$residuos)
+
+cat(
+  "Estadístico de prueba:",
+  round(diagnostico_tf3$durbin_watson$estadistico, 4), "\n",
+  "d aprox:",
+  round(diagnostico_tf3$durbin_watson$d_aprox, 4), "\n",
+  "dL:",
+  round(diagnostico_tf3$durbin_watson$dL, 4), "\n",
+  "dU:",
+  round(diagnostico_tf3$durbin_watson$dU, 4), "\n"
+)
+
+```
+
+El valor de la prueba de Durbin-Watson (aproximadamente 0.56) se
+encuentra muy por debajo del límite inferior ($d_L = 1.6765$), lo que
+indica que existe una fuerte autocorrelación positiva en los errores del
+modelo. Esto significa que los residuos no son independientes entre sí y
+que el modelo de tendencia actual deja información importante sin
+explicar en el tiempo.
+:::
+
+##### Holt–Winters aditivo
+
+```{r}
+# Alfa, Beta, Gamma optimos
+rejilla_hw <- seq(0.1, 0.9, by = 0.1)
+
+opt_holt_ad <- optimizar(
+  y = y3_est,
+  metodo = "hw",
+  rejilla = rejilla_hw,
+  s=7
+)
+
+opt_holt_ad$rejilla
+```
+
+
+```{r}
+# Graficar alfa, beta optimos
+graficar_hw(opt_holt_ad, "Optimización Alfa, Beta, Gamma - Serie 3")
+```
+
+
+```{r}
+# Ajustar el modelo
+alpha_opt_ad <- opt_holt_ad$optimo$alpha
+beta_opt_ad <- opt_holt_ad$optimo$beta
+gamma_opt_ad <- opt_holt_ad$optimo$gamma
+```
+
+
+```{r}
+modelo_holt_ad <- ajustar_hw(
+  y3_est,
+  s=7,
+  alpha_opt_ad,
+  beta_opt_ad,
+  gamma_opt_ad
+)
+```
+
+```{r}
+# Pronosticos
+pronosticos_hw_ad <- modelo_holt_ad$pronosticar(h_3)
+
+cat(
+  "Horizonte de validación (h):", h_3, "\n",
+  "Pronósticos Holt Winters Aditivo:", round(pronosticos_hw_ad, 7), "\n"
+)
+
+```
+El método Holt–Winters aditivo, con un ciclo estacional de siete días, genera pronósticos para los próximos siete días entre 408.4918 y 501.6981 millones de pesos diarios. Las variaciones reflejan tanto la tendencia como los efectos estacionales semanales.
+
+##### Holt-Winters Multiplicativo
+
+```{r}
+# Ajustar modelo
+modelo_holt_mult <- ajustar_hw_mult(
+  y3_est,
+  s=7,
+  alpha_opt_ad,
+  beta_opt_ad,
+  gamma_opt_ad
+)
+```
+
+```{r}
+# Pronosticos
+pronosticos_hw_mult <- modelo_holt_mult$pronosticar(h_3)
+
+cat(
+  "Horizonte de validación (h):", h_3, "\n",
+  "Pronósticos Holt Winters Multiplicativo:", round(pronosticos_hw_mult, 7), "\n"
+)
+```
+El método Holt–Winters multiplicativo genera pronósticos para los próximos siete días entre 407.1318 y 507.5826 millones de pesos diarios. Este método incorpora la tendencia y los efectos estacionales semanales, suponiendo que las variaciones estacionales son proporcionales al nivel de las ventas.
+
+
+##### Tendencia Lineal (Contraste)
+
+```{r}
+# Ajustar Tendencia lineal
+modelo_tendencia3 <- ajustar_tendencia(
+  y = y3_est,
+  tipo = "lineal",
+  corregir_sesgo = FALSE
+)
+```
+
+```{r}
+# Pronosticos
+pronosticos_tendencia3 <- modelo_tendencia3$pronosticar(h_3)
+
+cat(
+  "Horizonte de validación (h):", h_3, "\n",
+  "Pronósticos de tendencia lineal:",
+  round(pronosticos_tendencia3, 4), "\n"
+)
+```
+El método de tendencia lineal genera pronósticos para los próximos siete días entre 414.9851 y 416.105 millones de pesos diarios. Se observa un incremento gradual de las ventas pronosticadas, aunque los valores cambian muy poco entre días.
+
+::: {.panel-tabset}
+
+###### Prueba t de los Coeficientes
+
+Prueba de Hipótesis:
+
+$$H_0: \beta_j=0$$
+
+$$H_1: \beta_j \neq 0$$
+
+Estadístico de prueba:
+$$t = \frac{\hat{\beta}_j}{SE_{\text{robusto}}(\hat{\beta}_j)}$$
+Distribución bajo $H_0$:
+
+$$t \sim t_{n-3}$$
+
+Región de rechazo:
+
+$$|t|> t_{0.975, n-3}$$
+
+```{r}
+tabla_coef_lineal3 <- modelo_tendencia3$parametros$coeficientes
+
+tabla_coef_lineal3$estimacion   <- round(tabla_coef_lineal3$estimacion, 4)
+tabla_coef_lineal3$se_ordinario <- round(tabla_coef_lineal3$se_ordinario, 4)
+tabla_coef_lineal3$se_robusto   <- round(tabla_coef_lineal3$se_robusto, 4)
+tabla_coef_lineal3$t            <- round(tabla_coef_lineal3$t, 4)
+tabla_coef_lineal3$valor_p      <- format.pval(tabla_coef_lineal3$valor_p, digits = 4, eps = 0.0001)
+
+tabla_coef_lineal3
+
+```
+
+El modelo de tendencia lineal estima un incremento de 0.1867 millones de pesos diarios en las ventas del supermercado. Las pruebas t basadas en los errores estándar robustos indican que tanto el intercepto como la tendencia son estadísticamente significativos, pues sus valores p son inferiores a 0.05. Esto sugiere que existe una tendencia creciente en las ventas diarias.
+
+
+###### Revisión de los supuestos
+
+```{r}
+residuos_tl3 <- modelo_tendencia3$parametros$residuos
+
+diagnostico_tendencia_lineal3 <- validar_errores(
+  e = residuos_tl3,
+  m = NULL,
+  p = 0
+)
+
+```
+
+
+####### Correlograma
+
+```{r}
+diagnostico_tendencia_lineal3$correlograma$grafico
+```
+En las gráficas se observa que los errores presentan picos significativos que superan los límites permitidos, destacando patrones repetitivos y altos en los rezagos 7, 14 y 21. Esto indica claramente que los residuos tienen un fuerte componente estacional o periódico que el modelo de tendencia lineal no logró capturar. En consecuencia, los errores no se comportan como ruido blanco.
+
+####### Ljung Box
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tendencia_lineal3$ljung_box$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tendencia_lineal3$ljung_box$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tendencia_lineal3$ljung_box$valor_critico, 4
+  ), "\n",
+  "Valor p:", round(
+    diagnostico_tendencia_lineal3$ljung_box$valor_p, 4
+  ), "\n"
+)
+
+```
+En la prueba de Ljung-Box se obtiene un valor p cercano a cero. Por tanto, se rechaza la hipótesis nula de ausencia de autocorrelación en los errores. Esto indica que los errores de la tendencia lineal presentan dependencia temporal y que el modelo no captura completamente la dinámica de las ventas diarias.
+
+####### Jarque Bera
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    diagnostico_tendencia_lineal3$jarque_bera$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", diagnostico_tendencia_lineal3$jarque_bera$grados_libertad, "\n",
+  "Valor crítico:", round(
+    diagnostico_tendencia_lineal3$jarque_bera$valor_critico, 4
+  ), "\n",
+  "Valor p:", format.pval(
+    diagnostico_tendencia_lineal3$jarque_bera$valor_p,
+    digits = 4
+  ), "\n"
+)
+
+```
+La prueba de Jarque-Bera presenta un valor p de 0.0047. Por tanto, se rechaza la hipótesis nula de normalidad, lo que indica que los errores del modelo de tendencia lineal no siguen una distribución normal.
+
+####### Durbin Watson
+
+```{r}
+diagnostico_tendencia_lineal3$durbin_watson <-
+  durbin_watson(modelo_tendencia3$parametros$residuos)
+
+cat(
+  "Estadístico de prueba:",
+  round(diagnostico_tendencia_lineal3$durbin_watson$estadistico, 4), "\n",
+  "d aprox:",
+  round(diagnostico_tendencia_lineal3$durbin_watson$d_aprox, 4), "\n",
+  "dL:",
+  round(diagnostico_tendencia_lineal3$durbin_watson$dL, 4), "\n",
+  "dU:",
+  round(diagnostico_tendencia_lineal3$durbin_watson$dU, 4), "\n"
+)
+
+```
+El valor de la prueba de Durbin-Watson (aproximadamente 1.05) se encuentra por debajo del límite inferior ($1.68$), lo que indica que existe una clara autocorrelación positiva en los errores del modelo. Esto significa que los errores no son independientes entre sí y están relacionados a lo largo del tiempo, lo que confirma que el modelo de tendencia lineal actual no logró capturar toda la información importante de la serie.
+
+:::
+
+#### Medidas de error
+
+```{r}
+# Evaluacion de los metodos
+eval_s3_media     <- origen_movil(serie3$y, fn_ajuste = ajustar_media, H = 7, n_eval = 40, s = 7)
+
+eval_s3_ing_est   <- origen_movil(serie3$y, fn_ajuste = ajustar_ingenuo_estacional, H = 7, n_eval = 40, s = 7)
+
+eval_s3_mm        <- origen_movil(serie3$y, fn_ajuste = ajustar_mm, H = 7, n_eval = 40, s = 7, k = resultado_opt_3$optimo$k)
+
+eval_s3_ses       <- origen_movil(serie3$y, fn_ajuste = ajustar_ses, H = 7, n_eval = 40, s = 7, alpha = 
+                                    resultado_opt_ses3$optimo$alpha)
+
+eval_s3_tend_est  <- origen_movil(serie3$y, fn_ajuste = ajustar_tendencia_estacional, H = 7, n_eval = 40, s = 7)
+
+eval_s3_hw_add <- origen_movil(
+  serie3$y, 
+  fn_ajuste = ajustar_hw, 
+  H = 7, 
+  n_eval = 40, 
+  s = 7, 
+  alpha = opt_holt_ad$optimo$alpha, 
+  beta  = opt_holt_ad$optimo$beta, 
+  gamma = opt_holt_ad$optimo$gamma
+)
+
+eval_s3_hw_mult <- origen_movil(
+  serie3$y, 
+  fn_ajuste = ajustar_hw_mult, 
+  H = 7, 
+  n_eval = 40, 
+  s = 7, 
+  alpha = opt_holt_ad$optimo$alpha, 
+  beta  = opt_holt_ad$optimo$beta, 
+  gamma = opt_holt_ad$optimo$gamma
+)
+
+eval_s3_lin_con   <- origen_movil(serie3$y, fn_ajuste = ajustar_tendencia, H = 7, n_eval = 40, s = 7, tipo = "lineal")
+```
+
+```{r}
+# Errores para h = 1
+tabla_s3_h1 <- tibble(
+  `Método de Pronóstico` = c(
+    "Media Simple", 
+    "Referente Ingenuo Estacional (s=7)", 
+    "Media Móvil (MM)", 
+    "Suavización Exponencial Simple (SES)", 
+    "Tendencia Estacional (Ficticias)", 
+    "Holt-Winters Aditivo", 
+    "Holt-Winters Multiplicativo", 
+    "Contraste: Tendencia Lineal MCO"
+  ),
+  RMSE = c(
+    eval_s3_media$h1$RMSE, 
+    eval_s3_ing_est$h1$RMSE, 
+    eval_s3_mm$h1$RMSE, 
+    eval_s3_ses$h1$RMSE, 
+    eval_s3_tend_est$h1$RMSE, 
+    eval_s3_hw_add$h1$RMSE, 
+    eval_s3_hw_mult$h1$RMSE, 
+    eval_s3_lin_con$h1$RMSE
+  ),
+  MAD = c(
+    eval_s3_media$h1$MAD, 
+    eval_s3_ing_est$h1$MAD, 
+    eval_s3_mm$h1$MAD, 
+    eval_s3_ses$h1$MAD, 
+    eval_s3_tend_est$h1$MAD, 
+    eval_s3_hw_add$h1$MAD, 
+    eval_s3_hw_mult$h1$MAD, 
+    eval_s3_lin_con$h1$MAD
+  ),
+  `MAPE (%)` = c(
+    eval_s3_media$h1$MAPE, 
+    eval_s3_ing_est$h1$MAPE, 
+    eval_s3_mm$h1$MAPE, 
+    eval_s3_ses$h1$MAPE, 
+    eval_s3_tend_est$h1$MAPE, 
+    eval_s3_hw_add$h1$MAPE, 
+    eval_s3_hw_mult$h1$MAPE, 
+    eval_s3_lin_con$h1$MAPE
+  )
+) %>% 
+  arrange(RMSE) %>% 
+  mutate(
+    RMSE = round(RMSE, 3),
+    MAD  = round(MAD, 3),
+    `MAPE (%)` = round(`MAPE (%)`, 3)
+  )
+
+kable(
+  tabla_s3_h1,
+  align = "lccc",
+  caption = "Serie 3: Medidas de error para horizonte h = 1 (Origen Móvil)",
+  booktabs = TRUE
+)
+```
+
+Al evaluar los métodos para la Serie 3, los modelos que incorporan la estacionalidad de la serie lideran los resultados fuera de muestra. El Holt-Winters Aditivo se posiciona como el mejor método de pronóstico, con un RMSE de $10.89$, una MAD de $9.04$ y un MAPE del $2.12\%$. En términos prácticos, esto significa que sus predicciones se desvían en promedio aproximadamente un $2.12\%$ respecto a los valores reales, con un error absoluto promedio de $9.04$ unidades. Esto demuestra que combinar el nivel, la tendencia y la componente estacional permite obtener pronósticos precisos para esta serie.
+
+Muy de cerca le sigue el Holt-Winters Multiplicativo, con un RMSE de $11.12$, una MAD de $9.23$ y un MAPE del $2.17\%$, mostrando un desempeño muy similar al modelo aditivo. Sin embargo, la ligera ventaja del modelo aditivo indica que, entre estas dos alternativas, logra representar mejor el comportamiento de la serie.
+
+Después se encuentran la Tendencia Estacional con Variables Ficticias (MAPE del $2.49\%$ y MAD de $10.71$) y el Referente Ingenuo Estacional ($s=7$), con un MAPE del $2.49\%$ y una MAD de $10.51$. Ambos métodos ofrecen resultados competitivos, lo que resalta la importancia de considerar el patrón semanal de la serie. En particular, el Referente Ingenuo Estacional utiliza como pronóstico el valor observado siete periodos atrás, aprovechando la repetición de este patrón.
+
+Por el contrario, los métodos que no incorporan explícitamente la estacionalidad presentan un menor nivel de precisión. La Media Móvil registra un MAPE del $5.62\%$, la Tendencia Lineal MCO un $5.77\%$, la Suavización Exponencial Simple un $6.11\%$ y la Media Simple un $6.71\%$. Estos resultados muestran que los errores son considerablemente mayores que los obtenidos con los modelos estacionales, lo que evidencia la importancia de tener en cuenta los patrones semanales para realizar pronósticos más precisos.
+
+```{r}
+# Errores para h = 7
+tabla_s3_h7 <- tibble(
+  `Método de Pronóstico` = c(
+    "Media Simple", 
+    "Referente Ingenuo Estacional (s=7)", 
+    "Media Móvil (MM)", 
+    "Suavización Exponencial Simple (SES)", 
+    "Tendencia Estacional (Ficticias)", 
+    "Holt-Winters Aditivo", 
+    "Holt-Winters Multiplicativo", 
+    "Contraste: Tendencia Lineal MCO"
+  ),
+  RMSE = c(
+    eval_s3_media$hH$RMSE, 
+    eval_s3_ing_est$hH$RMSE, 
+    eval_s3_mm$hH$RMSE, 
+    eval_s3_ses$hH$RMSE, 
+    eval_s3_tend_est$hH$RMSE, 
+    eval_s3_hw_add$hH$RMSE, 
+    eval_s3_hw_mult$hH$RMSE, 
+    eval_s3_lin_con$hH$RMSE
+  ),
+  MAD = c(
+    eval_s3_media$hH$MAD, 
+    eval_s3_ing_est$hH$MAD, 
+    eval_s3_mm$hH$MAD, 
+    eval_s3_ses$hH$MAD, 
+    eval_s3_tend_est$hH$MAD, 
+    eval_s3_hw_add$hH$MAD, 
+    eval_s3_hw_mult$hH$MAD, 
+    eval_s3_lin_con$hH$MAD
+  ),
+  `MAPE (%)` = c(
+    eval_s3_media$hH$MAPE, 
+    eval_s3_ing_est$hH$MAPE, 
+    eval_s3_mm$hH$MAPE, 
+    eval_s3_ses$hH$MAPE, 
+    eval_s3_tend_est$hH$MAPE, 
+    eval_s3_hw_add$hH$MAPE, 
+    eval_s3_hw_mult$hH$MAPE, 
+    eval_s3_lin_con$hH$MAPE
+  )
+) %>% 
+  arrange(RMSE) %>% 
+  mutate(
+    RMSE = round(RMSE, 3),
+    MAD  = round(MAD, 3),
+    `MAPE (%)` = round(`MAPE (%)`, 3)
+  )
+
+kable(
+  tabla_s3_h7,
+  align = "lccc",
+  caption = "Serie 3: Medidas de error para horizonte h = 7 (Origen Móvil)",
+  booktabs = TRUE
+)
+```
+
+Al evaluar el desempeño de los métodos para un horizonte de $H = 7$ periodos, equivalente a un ciclo semanal completo, los resultados reafirman la superioridad de los modelos que consideran la estacionalidad. El Holt-Winters Aditivo se mantiene en el primer lugar, con un RMSE de $11.79$, una MAD de $8.69$ y un MAPE del $2.04\%$. En términos prácticos, esto significa que sus pronósticos presentan un error porcentual promedio cercano al $2\%$, con una desviación absoluta promedio de $8.69$ unidades. Esto demuestra su capacidad para representar el comportamiento de la serie al proyectar una semana completa.
+
+En el segundo puesto se encuentra el Holt-Winters Multiplicativo, con un RMSE de $11.93$, una MAD de $8.79$ y un MAPE del $2.06\%$, ofreciendo un rendimiento muy similar al modelo aditivo. A este le sigue el Referente Ingenuo Estacional ($s=7$), con un MAPE del $2.24\%$ y una MAD de $9.55$. Su buen desempeño tiene sentido práctico, ya que al pronosticar siete periodos hacia adelante utiliza como referencia los valores observados en los mismos días de la semana anterior, aprovechando la repetición del patrón semanal.
+
+Después se ubica la Tendencia Estacional con Variables Ficticias, con un MAPE del $2.34\%$ y una MAD de $10.11$, completando el grupo de métodos estacionales con errores porcentuales inferiores al $2.5\%$. En contraste, los métodos que no incorporan explícitamente la estacionalidad presentan una menor precisión. La Media Móvil registra un MAPE del $4.95\%$, la Suavización Exponencial Simple (SES) un $5.23\%$, la Tendencia Lineal MCO un $5.37\%$ y la Media Simple un $6.79\%$. Estos resultados muestran que los errores aumentan considerablemente al no tener en cuenta el patrón semanal, lo que resalta la importancia de incorporar la estacionalidad para obtener pronósticos más precisos.
+
+
+#### Validar Ganador
+
+El método Holt Winters Aditivo presenta los menores errores para el horizonte de un paso ($h=1$), por lo que se selecciona como ganador para este horizonte.
+
+::: {.panel-tabset}
+
+```{r}
+# Errores de Holt en origen móvil a un paso
+errores_hw_ad <- eval_s3_hw_add$e_h1
+
+# Validar los errores
+resultado_errores_hw_ad <- validar_errores(
+  e = errores_hw_ad,
+  m = NULL,
+  p = 0
+)
+
+```
+
+
+##### Gráfico
+
+```{r}
+g1_s3 <- resultado_errores_hw_ad$grafico_errores
+g2_s3 <- resultado_errores_hw_ad$correlograma$grafico
+
+g1_s3 | g2_s3
+```
+En la gráfica se observa que los errores de pronóstico fluctúan alrededor de la línea cero de forma relativamente aleatoria, sin mostrar una tendencia marcada o patrones sistemáticos a lo largo del tiempo. 
+
+
+En el ACF y PACF, no hay ninguna autocorrelación significativa entre los errores del modelo.Los errores se comportan como ruido blanco.
+
+##### Prueba t
+
+Prueba de Hipótesis
+
+$$H_0: \mu_e = 0$$ $$H_1: \mu_e \neq 0$$
+
+Estadístico de Prueba:
+
+$$t = \frac{\bar{e}}{s_e / \sqrt{40}}$$
+
+Distribución bajo $H_0$ 
+
+$$t \sim t_{39}$$ 
+
+Región de Rechazo
+
+$$|t| > t_{0.975,\,39}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(resultado_errores_hw_ad$t, 4), "\n",
+  "Grados de libertad:", resultado_errores_hw_ad$grados_libertad_t, "\n",
+  "Valor crítico:", round(
+    qt(0.975, resultado_errores_hw_ad$grados_libertad_t), 4
+  ), "\n",
+  "Valor p:", round(resultado_errores_hw_ad$valor_p_t, 4), "\n"
+)
+
+```
+Como el valor p es mayor a 0.05, no se rechaza $H_0$. Por lo tanto, el modelo de Holt-Winters aditivo no presenta sesgos sistemáticos.
+
+##### Ljung Box
+
+Prueba de Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{8}=0 $$ $$ H_1:\text{al menos una }\rho_h\neq0 $$
+
+Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{8} \frac{{r}_h^2}{T - h} $$
+
+Distribución
+
+$$Q \sim \chi^2_{8}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 8}$$
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    resultado_errores_hw_ad$ljung_box$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", resultado_errores_hw_ad$ljung_box$grados_libertad, "\n",
+  "Valor crítico:", round(
+    resultado_errores_hw_ad$ljung_box$valor_critico, 4
+  ), "\n",
+  "Valor p:", round(
+    resultado_errores_hw_ad$ljung_box$valor_p, 4
+  ), "\n"
+)
+```
+Como el valor p es mayor a 0.05, no se rechaza $H_0$. Los errores no están autocorrelacionados y se comportan como ruido blanco.
+
+
+##### Jarque Bera
+
+
+Prueba de Hipótesis
+
+$$ H_0:\text{los errores tienen distribución normal} $$ $$ H_1:\text{los errores no tienen distribución normal} $$
+
+Distribución Bajo $H_0$:
+
+$$ JB \sim \chi^2_{2} $$
+
+Estadístico de Prueba
+
+$$JB = \frac{T}{6} \left( A^2 + \frac{(K - 3)^2}{4} \right)$$
+
+Región de rechazo 
+
+$$ JB>\chi^2_{0.95,2} $$
+
+
+```{r}
+cat(
+  "Estadístico de prueba:", round(
+    resultado_errores_hw_ad$jarque_bera$estadistico, 4
+  ), "\n",
+  "Grados de libertad:", resultado_errores_hw_ad$jarque_bera$grados_libertad, "\n",
+  "Valor crítico:", round(
+    resultado_errores_hw_ad$jarque_bera$valor_critico, 4
+  ), "\n",
+  "Valor p:", format.pval(
+    resultado_errores_hw_ad$jarque_bera$valor_p,
+    digits = 4
+  ), "\n"
+)
+```
+Como el valor p es mayor a 0.05, no se rechaza $H_0$: no hay evidencia estadística suficiente para afirmar que los errores se aparten de una distribución normal.
+
+
+##### Durbin Watson
+
+Prueba de Hipótesis:
+
+$$ H_0:\rho=0 $$ $$ H_1:\rho\neq0 $$
+
+Estadístico de Prueba:
+
+$$ DW=\frac{\sum_{t=2}^{T}(e_t-e_{t-1})^2} {\sum_{t=1}^{T}e_t^2} $$
+
+```{r}
+cat(
+  "Estadístico de prueba:",
+  round(resultado_errores_hw_ad$durbin_watson$estadistico, 4), "\n",
+  "d aprox:",
+  round(resultado_errores_hw_ad$durbin_watson$d_aprox, 4), "\n",
+  "dL:",
+  round(resultado_errores_hw_ad$durbin_watson$dL, 4), "\n",
+  "dU:",
+  round(resultado_errores_hw_ad$durbin_watson$dU, 4), "\n"
+)
+
+```
+Como el valor de la prueba de Durbin-Watson (cercano a 1.88) es mayor que el límite superior (1.47), se encuentra en la zona de no autocorrelación. Por tanto, no hay evidencia de autocorrelación de primer orden en los errores del modelo de Holt-Winters aditivo.
+
+:::
+
+#### Pronóstico Final
+
+```{r}
+T_3 <- length(serie3$y)
+H_3 <- 7
+```
+
+
+```{r}
+# Ajustar Holt-Winters aditivo usando toda la serie 3
+modelo_final_3 <- ajustar_hw(
+  serie3$y,
+  s = 7,
+  alpha = alpha_opt_ad,
+  beta = beta_opt_ad,
+  gamma = gamma_opt_ad
+)
+
+# Pronósticos de los H días siguientes
+pronosticos_finales_3 <- modelo_final_3$pronosticar(H_3)
+
+# Desviación estándar de los errores para cada horizonte
+desv_errores_3 <- sapply(1:7, function(h) {
+  errores <- eval_s3_hw_add$todos$error[
+    eval_s3_hw_add$todos$h == h
+  ]
+  sd(errores)
+})
+
+# Datos para el gráfico
+grafico_final_3 <- data.frame(
+  tiempo = 1:(T_3 + H_3),
+  real = c(serie3$y, rep(NA, H_3)),
+  ajuste = c(
+    modelo_final_3$yhat,
+    rep(NA, H_3)
+  ),
+  pronostico = c(
+    rep(NA, T_3),
+    pronosticos_finales_3
+  ),
+  inferior = c(
+    rep(NA, T_3),
+    pronosticos_finales_3 - 1.96 * desv_errores_3
+  ),
+  superior = c(
+    rep(NA, T_3),
+    pronosticos_finales_3 + 1.96 * desv_errores_3
+  )
+)
+
+# Gráfico final
+ggplot2::ggplot(
+  grafico_final_3,
+  ggplot2::aes(x = tiempo)
+) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = real),
+    color = "purple"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = ajuste),
+    color = "green"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = pronostico),
+    color = "green"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = inferior),
+    color = "black",
+    linetype = "dotted"
+  ) +
+  ggplot2::geom_line(
+    ggplot2::aes(y = superior),
+    color = "black",
+    linetype = "dotted"
+  ) +
+  ggplot2::geom_vline(
+    xintercept = T_3,
+    color = "red",
+    linetype = "dashed"
+  ) +
+  ggplot2::labs(
+    title = "Serie 3: ajuste y pronóstico final de Holt Winters Aditivo",
+    subtitle = "Límites heurísticos de ±1,96 desviaciones estándar",
+    x = "Fecha",
+    y = "Ventas diarias (millones de pesos)"
+  ) +
+  ggplot2::theme_minimal()
+```
+
+En la gráfica se observa que la línea verde de estimación sigue de manera muy cercana el comportamiento de la serie original, lo que demuestra que el modelo logró capturar con gran precisión tanto los altibajos estacionales como la tendencia creciente a lo largo de los días. El modelo proyecta el pronóstico futuro manteniendo ese mismo patrón cíclico
+
+
+```{r}
+# Ultimo tramo
+ganador_s3 <- "Holt-Winters Aditivo"
+
+# Se elimina el parámetro 'tipo = "aditivo"' que no existe en ajustar_hw()
+fn_s3 <- function(y) {
+  ajustar_hw(
+    y, 
+    s = 7, 
+    alpha = opt_holt_ad$optimo$alpha,
+    beta  = opt_holt_ad$optimo$beta,
+    gamma = opt_holt_ad$optimo$gamma
+  )
+}
+
+final_s3 <- pronostico_final(
+  y = serie3$y, 
+  fechas = serie3$fecha, 
+  fn = fn_s3, 
+  H = 7, 
+  n_eval = 40, 
+  paso = 1,
+  titulo = paste0("Serie 3: pronóstico final a 7 días (", ganador_s3, ")"),
+  unidad = attr(serie3, "unidad")
+)
+
+final_s3$grafico
+tabla_final(final_s3, "Serie 3: Pronóstico final y banda heurística")
+```
+
+El método ganador a un paso $(h = 1)$ para la Serie 3 es **`r ganador_s3`**. Reajustado con las `r length(serie3$y)` observaciones, pronostica para los próximos 7 días valores entre `r round(min(final_s3$tabla$pronostico), 1)` y `r round(max(final_s3$tabla$pronostico), 1)` millones de pesos. La banda se ensancha con el horizonte porque los errores de origen móvil crecen al pronosticar más pasos adelante; al ser heurística, debe leerse como un orden de magnitud de la incertidumbre y no como una probabilidad exacta.
+
+#### Conclusión
+
+Serie 3 (ventas diarias del supermercado). Presenta estacionalidad semanal ($s = 7$), con picos de ACF en los rezagos $7$, $14$ y $21$. El efecto de cada día va de $-31.58$ millones (día 1) a $+61.28$ millones (día 6), unos $93$ millones de diferencia. Además, el nivel baja de unos $400$ a $335$ millones y luego sube a unos $500$. El ciclo no crece con el nivel (correlación entre amplitud y nivel de $-0.108$), por eso el modelo aditivo es el adecuado. La diferencia estacional $(1 - B^7)$ la vuelve plausiblemente estacionaria: la varianza baja de $1323.16$ a $187.21$ y $r_1$ de $0.5571$ a $0.3576$. Agregar la diferencia ordinaria sube la varianza a $240.32$ y lleva $r_1$ a $-0.4380$. Aun así, la serie transformada conserva algo de dependencia (Ljung–Box $Q = 84.74$ frente a un crítico de $23.68$), así que solo es “plausiblemente” estacionaria.
+
+El mejor método fue Holt-Winters aditivo ($\alpha = 0.3$, $\beta = 0.2$, $\gamma = 0.2$). A un paso tiene $\text{RMSE} = 10.89$, $\text{MAD} = 9.04$ y $\text{MAPE} = 2.12\%$, frente a $\text{RMSE} = 11.94$, $\text{MAD} = 9.55$ y $\text{MAPE} = 2.24\%$ del ingenuo estacional, una mejora de $8.8\%$. A $H = 7$ tiene $\text{RMSE} = 11.79$, $\text{MAD} = 8.69$ y $\text{MAPE} = 2.04\%$, y el ingenuo estacional tiene $\text{MAD} = 9.55$ y $\text{MAPE} = 2.24\%$. Frente al referente, la $\text{MAD}$ baja un $9.0\%$. En sus errores no queda estructura: Durbin–Watson vale cerca de $1.88$, mayor que $d_U = 1.47$, y Ljung–Box da $Q = 10.42$ ($p = 0.2368$). Tampoco hay sesgo ($p$ de la prueba $t = 0.7412$) ni problemas de normalidad ($p$ de Jarque–Bera $= 0.6815$).
+
+Como la serie termina el domingo 14 de septiembre, el pronóstico de la próxima semana va de lunes a domingo (en millones de pesos): 
+
+- *Lunes:* $399.43$
+- *Martes:* $398.19$
+- *Miércoles:* $403.51$
+- *Jueves:* $414.95$
+- *Viernes:* $445.93$
+- *Sábado:* $482.99$ 
+- *Domingo:* $425.96$. 
+
+El total semanal suma $2,970.96$ millones (promedio diario de $424.42$, un $4.3\%$ superior a la media histórica de $406.79$). El sábado destaca como el día pico ($20.9\%$ más que el lunes), seguido del viernes ($11.6\%$ más que el lunes). Dado que los pedidos de frutas, verduras y panadería se realizan con $2$ días de anticipación, cada orden debe basarse estrictamente en el pronóstico del día de venta y no del día de emisión. Con un error típico a $7$ días de $11.79$ millones por día ($2.8\%$ del promedio), se recomienda mantener un pequeño margen de seguridad para balancear el costo de mermas ($40\%$) frente a la pérdida por desabastecimiento ($22\%$).
+
+:::
+:::
