@@ -315,3 +315,383 @@ estimación y termina en la última observación disponible. En cada origen
 móvil, el pronóstico se calcula utilizando únicamente los datos
 disponibles hasta ese momento.
 :::
+
+
+## Descripción y patrón
+
+::: panel-tabset
+### Serie 1: Valor promedio semanal de la compra en una cadena de tiendas
+
+```{r}
+# Serie 1
+grafico_serie1 <- graficar_serie(
+  serie1,
+  "Valor promedio semanal de compras"
+)
+
+resultado_cor1 <- correlograma(serie1$y)
+
+panel1 <- panel_diagnostico(
+  grafico_serie1,
+  resultado_cor1
+)
+
+print(panel1)
+```
+
+```{r}
+# Gráficos de rezagos de la Serie 1
+p1 <- grafico_rezagos(serie1, 1)
+p2 <- grafico_rezagos(serie1, 4)
+p3 <- grafico_rezagos(serie1, 13)
+p4 <- grafico_rezagos(serie1, 52)
+
+(p1 | p2) / (p3 | p4)
+```
+
+```{r}
+resultado_cor52 <- correlograma(serie1$y, 52)
+resultado_cor52$acf[c(1, 4, 13, 52)]
+```
+
+La serie presenta una tendencia creciente, especialmente hacia el final
+del período. En el correlograma, la ACF muestra un decaimiento lento y
+numerosas autocorrelaciones superan las bandas de referencia, lo que
+indica una fuerte dependencia temporal y sugiere que la serie no es
+estacionaria en su nivel.
+
+Se eligieron los rezagos 1, 4, 13 y 52 porque la serie es semanal: el
+rezago 1 relaciona semanas consecutivas, mientras que los rezagos 4, 13
+y 52 aproximan un mes, un trimestre y un año, respectivamente. Las
+autocorrelaciones obtenidas son r1 = 0.8546, r4 = 0.7439, r13 = 0.5584 y
+r52 = -0.1282. Se observa que la relación positiva disminuye a medida
+que aumenta el rezago, sin picos positivos destacados en los rezagos
+elegidos. Por ello, no se encuentra evidencia clara de estacionalidad
+mensual, trimestral o anual.
+
+Por su parte, en el PACF únicamente el primer rezago sobresale
+claramente de las bandas de referencia, lo que indica que la dependencia
+directa más destacada se presenta entre observaciones consecutivas. En
+conjunto, el gráfico temporal, el decaimiento lento de la ACF y la forma
+del PACF respaldan la clasificación de la serie como una serie con
+tendencia, no estacionaria y no estacional.
+
+### Serie 2: Clientes registrados en una tienda en línea
+
+```{r}
+# Serie 2
+grafico_serie2 <- graficar_serie(
+  serie2,
+  "Clientes registrados semanalmente"
+)
+
+resultado_cor2 <- correlograma(serie2$y)
+
+panel2 <- panel_diagnostico(
+  grafico_serie2,
+  resultado_cor2
+)
+
+print(panel2)
+```
+
+```{r}
+# Gráficos de rezagos de la Serie 2
+p1_2 <- grafico_rezagos(serie2, 1)
+p2_2 <- grafico_rezagos(serie2, 4)
+p3_2 <- grafico_rezagos(serie2, 13)
+p4_2 <- grafico_rezagos(serie2, 52)
+
+(p1_2 | p2_2) / (p3_2 | p4_2)
+```
+
+```{r}
+y_dif2 <- diferenciar(serie2$y, 1, 0, 1)
+r_dif2 <- acf_muestral(y_dif2, 52)
+banda2 <- 1.96 / sqrt(length(y_dif2))
+
+round(r_dif2[c(4, 13, 26, 52)], 3)
+banda2
+sum(abs(r_dif2) > banda2)     
+```
+
+La serie 2, correspondiente a los clientes registrados semanalmente en
+una tienda en línea, presenta una tendencia creciente casi lineal, desde
+unos 300 hasta unos 440 cientos de clientes, sin ondas que se repitan
+claramente.
+
+Se eligieron los rezagos 1, 4, 13 y 52 para comparar semanas
+consecutivas y aproximar un mes, un trimestre y un año. En los cuatro
+gráficos se observa una relación lineal fuerte, explicada principalmente
+por la tendencia.
+
+Para revisar si había estacionalidad, se analizó también la serie
+diferenciada. Las autocorrelaciones en los rezagos 4 y 52 quedan dentro
+de las bandas de referencia. Aunque los rezagos 13 y 26 las superan
+ligeramente, no se observa un patrón repetitivo claro. Por tanto, no se
+encuentra evidencia suficiente de estacionalidad, aunque no se descarta
+por completo un efecto débil.
+
+En el correlograma de la serie original, la ACF presenta un decaimiento
+lento y numerosas barras fuera de la banda de ruido blanco, mientras que
+el PACF destaca principalmente en el primer rezago. En conjunto, la
+serie se clasifica como una serie con tendencia creciente, sin evidencia
+clara de estacionalidad y no estacionaria en su nivel.
+
+
+
+
+### Serie 3: Ventas diarias de un supermercado de barrio
+
+```{r}
+# Serie 3
+grafico_serie3 <- graficar_serie(
+  serie3,
+  "Ventas diarias del supermercado"
+)
+
+resultado_cor3 <- correlograma(serie3$y)
+
+panel3 <- panel_diagnostico(
+  grafico_serie3,
+  resultado_cor3
+)
+
+print(panel3)
+```
+
+```{r}
+# Grafico de rezagos
+p1_3 <- grafico_rezagos(serie3, 1)
+p2_3 <- grafico_rezagos(serie3, 7)
+p3_3 <- grafico_rezagos(serie3, 14)
+p4_3 <- grafico_rezagos(serie3, 30)
+
+(p1_3 | p2_3) / (p3_3 | p4_3)
+```
+
+Las ventas diarias del supermercado muestran fluctuación muy regular que
+se repite cada semana, junto con un cambio de nivel: bajan de unos 400
+millones de pesos en marzo a cerca de 335 millones entre abril y junio,
+y luego suben hasta aproximadamente 500 millones en septiembre.
+
+La serie presenta una tendencia que no es lineal, sino que primero
+desciende y después aumenta. Este comportamiento se observa tanto en el
+gráfico original como en la tendencia estimada mediante la media móvil
+centrada.
+
+Para analizar la dependencia temporal, se eligieron los rezagos 1, 7, 14
+y 30. El rezago 1 compara días consecutivos; los rezagos 7 y 14 permiten
+comparar las ventas con las de una y dos semanas atrás, respectivamente,
+para identificar la estacionalidad semanal; y el rezago 30 permite
+explorar si existe una relación aproximada con las ventas de un mes
+antes.
+
+Se identifica una estacionalidad semanal de 7 días. En la ACF destacan
+los rezagos 7, 14 y 21, mientras que en la PACF sobresalen los rezagos
+1, 6 y 7. Además, los gráficos de rezago 7 y 14 muestran una relación
+positiva marcada, lo que indica que las ventas tienden a parecerse entre
+días equivalentes de semanas anteriores. En el rezago 1 la relación es
+más dispersa, posiblemente porque las ventas varían según el día de la
+semana, mientras que en el rezago 30 no se observa un patrón claro.
+
+En conjunto, la serie no parece estacionaria en su nivel, ya que
+presenta cambios en su nivel medio a lo largo del tiempo y una
+autocorrelación marcada por el ciclo semanal.
+
+```{r}
+grafico_estacional(serie3, 7)
+```
+
+El gráfico estacional muestra que las 28 semanas tienen una forma
+similar: los primeros cuatro días presentan ventas bajas y relativamente
+estables, estas aumentan el día 5, alcanzan su máximo el día 6 y caen el
+día 7. La repetición de estos picos y valles confirma la estacionalidad
+semanal de período 7.
+
+Esta estacionalidad es especialmente clara porque los ciclos conservan
+una forma similar y presentan una amplitud de aproximadamente 90 a 95
+millones de pesos entre el valle y el pico. Además, el patrón coincide
+con la ACF, que presenta picos en los rezagos 7, 14 y 21, y con los
+gráficos de rezago 7 y 14, donde se observa una relación positiva
+marcada.
+
+Aunque los trazos se ubican en distintos niveles, mantienen una forma
+similar. Esto refleja los cambios en el nivel de ventas a lo largo del
+tiempo, sin alterar el patrón estacional semanal.
+
+```{r}
+#Grafico de amplitud vs nivel
+semana <- ceiling(seq_along(serie3$y) / 7)
+
+nivel    <- tapply(serie3$y, semana, mean)
+amplitud <- tapply(serie3$y, semana, function(x) max(x) - min(x))
+
+correlacion <- cor(nivel, amplitud)
+
+datos <- data.frame(nivel = as.numeric(nivel), amplitud = as.numeric(amplitud))
+
+ggplot(datos, aes(x = nivel, y = amplitud)) +
+  geom_point(color = "purple", size = 2.5) +
+  scale_y_continuous(limits = c(0, NA)) +
+  labs(
+    title = "Amplitud vs. nivel medio de cada semana",
+    subtitle = paste("Correlación =", round(correlacion, 3)),
+    x = "Nivel medio de la semana (millones de pesos)",
+    y = "Amplitud de la semana (millones de pesos)"
+  ) +
+  theme_minimal()
+```
+
+El gráfico compara el nivel medio de cada semana con su amplitud,
+calculada como la diferencia entre las ventas máximas y mínimas. Los 28
+puntos forman una nube sin una tendencia clara: mientras el nivel medio
+aumenta de unos 370 a 435 millones de pesos, la amplitud se mantiene
+aproximadamente entre 80 y 116 millones. La correlación es de −0,108,
+cercana a cero.
+
+Estos resultados respaldan una **descomposición aditiva**, ya que la
+amplitud del ciclo semanal se mantiene relativamente estable y no
+aumenta con el nivel de ventas. En cambio, en un modelo multiplicativo
+se esperaría que la amplitud creciera a medida que aumenta el nivel. Por
+tanto, el patrón observado favorece el modelo aditivo.
+
+```{r}
+# Media móvil centrada de la serie 3
+tendencia3 <- media_movil_centrada(serie3$y, 7)
+
+head(tendencia3)
+```
+
+```{r}
+# Descomposición clásica de la serie 3
+resultado3 <- descomposicion_clasica(
+  y = serie3$y,
+  periodo = 7,
+  tipo = "aditiva"
+)
+
+resultado3$indices_estacionales
+```
+
+La media móvil centrada de período 7 presenta tres valores iniciales NA,
+porque no hay suficientes observaciones para calcular la media centrada
+al comienzo de la serie. A partir de la cuarta observación, se obtiene
+una estimación suavizada de la tendencia. Los valores pasan de 407,06 a
+406,41 y luego a 404,37 millones de pesos, lo que refleja una
+disminución inicial del nivel de ventas.
+
+Los índices estacionales de la descomposición aditiva muestran que el
+efecto semanal varía según el día. Los índices negativos (−31,58,
+−25,55, −21,17 y −9,68 millones) indican ventas inferiores a la
+tendencia, mientras que los positivos (22,06, 61,28 y 4,64 millones)
+indican ventas superiores a ella. El mayor efecto positivo es de 61,28
+millones de pesos y el menor es de −31,58 millones. En conjunto, los
+índices reflejan un patrón semanal en el que algunos días presentan
+ventas más altas y otros más bajas respecto a la tendencia.
+
+```{r}
+# Preparar los datos para los gráficos
+datos3 <- data.frame(
+  fecha = serie3$fecha,
+  ventas = serie3$y,
+  tendencia = resultado3$tendencia,
+  residuo = resultado3$residuo
+)
+```
+
+```{r}
+# Graficar la tendencia
+ggplot(datos3, aes(x = fecha, y = tendencia)) +
+  geom_line(color = "purple") +
+  labs(
+    title = "Tendencia estimada - Serie 3",
+    x = "Fecha",
+    y = "Ventas (millones de pesos)"
+  ) +
+  theme_minimal()
+```
+
+La tendencia estimada muestra cómo cambia el nivel general de las ventas
+al suavizar las variaciones asociadas a los días de la semana. Comienza
+alrededor de 407 millones de pesos, desciende hasta unos 385 millones a
+finales de marzo, presenta una recuperación temporal a principios de
+abril y vuelve a caer hasta cerca de 370 millones en mayo. Desde
+entonces, aumenta casi continuamente hasta alcanzar unos 437 millones en
+septiembre.
+
+Este comportamiento no corresponde a una línea recta ni a un crecimiento
+constante, sino a un descenso inicial seguido de una recuperación. Por
+ello, una tendencia lineal no representaría adecuadamente la evolución
+de la serie.
+
+La curva es más suave que la serie original porque la media móvil
+centrada de 7 términos promedia las ventas de una semana y reduce las
+fluctuaciones diarias. Por esta razón, la tendencia estimada comienza en
+el cuarto día y termina tres días antes de la última observación.
+
+```{r}
+# Graficar los índices estacionales
+indices3 <- data.frame(
+  dia = 1:7,
+  indice = resultado3$indices_estacionales
+)
+
+ggplot(indices3, aes(x = dia, y = indice)) +
+  geom_line(color = "purple") +
+  geom_point(color = "purple", size = 2.5) +
+  scale_x_continuous(
+    breaks = 1:7,
+    labels = c("Lunes", "Martes", "Miércoles", "Jueves",
+               "Viernes", "Sábado", "Domingo")
+  ) +
+  labs(
+    title = "Índices estacionales - Serie 3",
+    x = "Día de la semana",
+    y = "Índice estacional (millones de pesos)"
+  ) +
+  theme_minimal()
+```
+
+Los índices estacionales muestran cuánto se alejan las ventas de cada
+día respecto al nivel general, una vez considerada la tendencia. Los
+primeros cuatro días presentan efectos negativos, entre −31,6 y −9,7
+millones de pesos. El día 5 aumenta a +22,1 millones, el día 6 alcanza
+el máximo con +61,3 millones y el día 7 desciende a +4,6 millones.
+
+En términos sencillos, el día 6 tiene un efecto estacional de unos 61
+millones de pesos por encima de la tendencia, mientras que el día 1
+presenta uno de unos 32 millones por debajo. La diferencia entre ambos
+efectos es de aproximadamente 93 millones. Los índices tienen promedio
+cero, como corresponde al modelo aditivo, por lo que representan las
+variaciones propias del ciclo semanal y no el nivel general de ventas.
+
+Como la serie comienza el lunes 3 de marzo de 2025, el día 1 corresponde
+al lunes y el día 6 al sábado. Por tanto, el sábado presenta el mayor
+efecto estacional, seguido de una caída el domingo.
+
+```{r}
+# Graficar el residuo
+ggplot(datos3, aes(x = fecha, y = residuo)) +
+  geom_line(color = "purple") +
+  labs(
+    title = "Residuo de la descomposición - Serie 3",
+    x = "Fecha",
+    y = "Residuo"
+  ) +
+  theme_minimal()
+```
+
+El residuo representa la parte de las ventas que queda después de
+retirar la tendencia y el ciclo semanal. En el gráfico oscila alrededor
+de cero, generalmente entre −15 y +15 millones de pesos, sin una
+tendencia sostenida ni un patrón estacional evidente. Esto sugiere que
+la tendencia y los índices estacionales capturan buena parte de la
+estructura de la serie, mientras que el residuo recoge las variaciones
+que la descomposición no explica.
+
+Se observan algunos valores más extremos, como uno cercano a −23
+millones a mediados de marzo y otro de aproximadamente +22 millones en
+agosto. Sin embargo, son puntuales y no modifican el comportamiento
+general del residuo.
+:::
