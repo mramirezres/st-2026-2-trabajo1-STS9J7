@@ -64,3 +64,175 @@ grafico_rezagos <- function(datos, rezago) {
     ) +
     ggplot2::theme_minimal()
 }
+
+
+#FUNCION CORRELOGRAMA Y PACF
+correlograma <- function(datos, m = NULL) {
+  
+  if (!is.numeric(datos)) {
+    stop("La serie debe ser numérica.")
+  }
+  
+  if (any(is.na(datos))) {
+    stop("La serie contiene valores faltantes.")
+  }
+  
+  n <- length(datos)
+  
+  if (n < 2) {
+    stop("La serie debe tener al menos dos observaciones.")
+  }
+  
+  if (is.null(m)) {
+    m <- min(floor(n / 4), 24)
+  }
+  
+  if (m < 1 || m >= n) {
+    stop("El número de rezagos debe ser mayor que 0 y menor que n.")
+  }
+  
+  r <- acf_muestral(datos, m)
+  
+  # Calcular la PACF con Durbin-Levinson
+  pacf_valores <- pacf_dl(r)
+  
+  banda_ruido <- 1.96 / sqrt(n)
+  
+  banda_bartlett <- numeric(m)
+  
+  for (h in 1:m) {
+    
+    if (h == 1) {
+      suma <- 0
+    } else {
+      suma <- sum(r[1:(h - 1)]^2)
+    }
+    
+    banda_bartlett[h] <- 1.96 *
+      sqrt((1 + 2 * suma) / n)
+  }
+  
+  # Datos para el gráfico ACF
+  datos_acf <- data.frame(
+    rezago = 1:m,
+    valor = r,
+    bartlett = banda_bartlett
+  )
+  
+  # Datos para el gráfico PACF
+  datos_pacf <- data.frame(
+    rezago = 1:m,
+    valor = pacf_valores
+  )
+  
+  grafico_acf <- ggplot2::ggplot(
+    datos_acf,
+    ggplot2::aes(x = rezago, y = valor)
+  ) +
+    ggplot2::geom_hline(yintercept = 0) +
+    
+    ggplot2::geom_hline(
+      yintercept = c(-banda_ruido, banda_ruido),
+      linetype = "dashed",
+      color = "red"
+    ) +
+    
+    ggplot2::geom_line(
+      ggplot2::aes(
+        x = rezago,
+        y = bartlett
+      ),
+      linetype = "dotted",
+      color = "blue"
+    ) +
+    
+    ggplot2::geom_line(
+      ggplot2::aes(
+        x = rezago,
+        y = -bartlett
+      ),
+      linetype = "dotted",
+      color = "blue"
+    ) +
+    
+    ggplot2::geom_segment(
+      ggplot2::aes(
+        xend = rezago,
+        y = 0,
+        yend = valor
+      ),
+      color = "purple"
+    ) +
+    
+    ggplot2::labs(
+      title = "ACF",
+      x = "Rezago",
+      y = "Autocorrelación"
+    ) +
+    
+    ggplot2::theme_minimal()
+  
+  # Gráfico PACF
+  grafico_pacf <- ggplot2::ggplot(
+    datos_pacf,
+    ggplot2::aes(x = rezago, y = valor)
+  ) +
+    ggplot2::geom_hline(yintercept = 0) +
+    
+    ggplot2::geom_hline(
+      yintercept = c(-banda_ruido, banda_ruido),
+      linetype = "dashed",
+      color = "red"
+    ) +
+    
+    ggplot2::geom_segment(
+      ggplot2::aes(
+        xend = rezago,
+        y = 0,
+        yend = valor
+      ),
+      color = "purple"
+    ) +
+    
+    ggplot2::labs(
+      title = "PACF",
+      x = "Rezago",
+      y = "Autocorrelación parcial"
+    ) +
+    
+    ggplot2::theme_minimal()
+  
+  # Unir los gráficos
+  panel <- patchwork::wrap_plots(
+    grafico_acf,
+    grafico_pacf,
+    ncol = 1
+  )
+  
+  return(
+    list(
+      acf = r,
+      pacf = pacf_valores,
+      banda_ruido = banda_ruido,
+      banda_bartlett = banda_bartlett,
+      grafico = panel
+    )
+  )
+}
+
+# UNIR SERIE, ACF Y PACF
+panel_diagnostico <- function(grafico_serie, resultado_cor) {
+  
+  grafico_acf <- resultado_cor$grafico[[1]]
+  grafico_pacf <- resultado_cor$grafico[[2]]
+  
+  panel <- (
+    grafico_serie |
+      (grafico_acf / grafico_pacf)
+  )
+  
+  return(panel)
+}
+
+
+
