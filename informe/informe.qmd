@@ -5049,3 +5049,22 @@ El total semanal suma $2,970.96$ millones (promedio diario de $424.42$, un $4.3\
 
 :::
 :::
+
+```{r}
+if (!dir.exists("figs")) dir.create("figs")
+
+for (nombre in nombres_graficos) {
+  grafico <- get(nombre)
+
+  ggplot2::ggsave(
+    filename = file.path("figs", paste0(nombre, ".png")),
+    plot = grafico,
+    width = 8,
+    height = 6,
+    dpi = 150
+  )
+}
+
+cat("Gráficos guardados:", length(nombres_graficos), "\n")
+```
+
