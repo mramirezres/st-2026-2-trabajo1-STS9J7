@@ -1532,3 +1532,522 @@ representan la estacionalidad de período $s$.
 
 La demostración matemática formal correspondientes a los desarrollos teóricos del Punto 4(d) se encuentra disponible en el documento de soporte anexo [@demostracionesPunto4D].
 :::
+
+
+## Dependencia y estacionariedad
+
+**Banda de Ruido Blanco (**$\pm \frac{1.96}{\sqrt{n}}$)
+
+Responde a la pregunta de si la serie entera es un proceso de ruido
+blanco. Evalúa la hipótesis nula sostenida de que la serie transformada
+no posee autocorrelación en ningún rezago ($\rho(h) = 0$ para todo $h$).
+Bajo esta premisa, la desviación estándar de la autocorrelación es fija
+y constante para todos los rezagos
+
+**Banda de Bartlett
+(**$\pm \frac{1.96}{\sqrt{n}} \sqrt{1 + 2 \sum_{i=1}^{h-1} r_i^2}$)
+
+Responde a la pregunta de si el rezago $h$ agrega información o
+dependencia significativa, dado que los rezagos anteriores
+($1, \dots, h-1$) son reales / no nulos. Asume que la serie presenta
+autocorrelación previa no nula en los primeros $h-1$ rezagos y evalúa si
+el correlograma se corta a partir del orden $h$. Como toma en cuenta la
+variabilidad acumulada de la autocorrelación previa
+($\sum_{i=1}^{h-1} r_i^2$), esta segunda banda se va ensanchando
+progresivamente a medida que aumenta el rezago $h$.
+
+::: panel-tabset
+### Serie 1: Valor promedio semanal de la compra en una cadena de tiendas
+
+::: panel-tabset
+#### ACF y PACF muestrales
+
+```{r}
+# Serie 1 transformada
+serie1_d1 <- diferenciar(serie1$y, d = 1)
+```
+
+```{r}
+# Correlograma
+
+# Serie 1: primera diferencia ordinaria
+resultado1 <- correlograma(serie1_d1)
+resultado1$grafico
+```
+
+La serie 1 transformada presenta una dependencia de corto plazo. En la
+ACF, el rezago 1 sobresale claramente con un valor cercano a −0,36,
+mientras que los siguientes no muestran evidencia clara de una
+dependencia importante. En la PACF sobresalen los rezagos 1, 2 y 4. En
+comparación con la serie original, la primera diferencia eliminó el
+decaimiento lento de las autocorrelaciones y redujo la dependencia
+temporal.
+
+#### Ljung Box
+
+Prueba Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{24}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$ Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{m} \frac{{r}_h^2}{T - h} $$ Distribución
+
+$$Q \sim \chi^2_{24}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 24}$$
+
+```{r}
+# Ljung Box
+r1 <- acf_muestral(serie1_d1, m = 24)
+
+resultado_ljung1 <- ljung_box(
+  r = r1,
+  T = length(serie1_d1),
+  m = 24
+)
+
+cat(
+  "Serie 1 → Q =", round(resultado_ljung1$estadistico, 4),
+  "| gl =", resultado_ljung1$grados_libertad,
+  "| valor crítico =", round(resultado_ljung1$valor_critico, 4),
+  "| p-valor =", round(resultado_ljung1$valor_p, 4), "\n"
+)
+```
+
+Se eligió $m=24$ para evaluar conjuntamente los primeros 24 rezagos, en
+concordancia con el correlograma de la sección 3. Ese valor cubre el
+mes, el trimestre y casi medio año, que son los ciclos revisados al
+estudiar la estacionalidad, y queda muy por debajo de $n/4$ con $n=199$,
+de modo que la prueba conserva potencia. \[La decisión se mantiene con
+$m=6$, 12 y 36.\]
+
+En la prueba de Ljung–Box se obtiene $Q=54{,}85$, frente a un valor
+crítico de $36{,}415$, y un valor p de $0{,}0003$. Por tanto, se rechaza
+la hipótesis de ausencia de autocorrelación conjunta: la serie
+transformada todavía presenta dependencia temporal.
+
+
+**Lectura de la forma de la ACF y de la PACF:**
+En la ACF destaca principalmente el rezago 1, con una autocorrelación
+negativa cercana a $-0{,}36$, mientras que la mayoría de los rezagos
+restantes se encuentran dentro de las bandas. En la PACF sobresalen los
+rezagos 1, 2 y 4, también con valores negativos. Esto sugiere que la
+dependencia se concentra en los primeros rezagos, sin una memoria larga
+visible.
+
+La forma de la ACF es compatible con un posible `MA(1)` con coeficiente
+negativo, aunque los gráficos no permiten identificar con certeza un
+modelo específico. La PACF no presenta un corte suficientemente claro
+para confirmar un `AR` de orden bajo. La serie no es compatible con ruido
+blanco, porque Ljung–Box rechaza, ni con una caminata aleatoria, cuya
+serie diferenciada sería ruido blanco, ni con un proceso de memoria
+larga, porque la ACF se apaga enseguida. Además, un $r_1$ negativo tras
+diferenciar puede señalar una diferencia de más, algo que se evalúa en
+la sección 4.
+
+#### Estacionariedad y ergodicidad
+
+```{r}
+res_bloques1 <- comparar_bloques(serie1_d1)
+
+tabla_bloques_s1 <- tibble(
+  Serie = "Serie 1",
+  Bloque = paste("Bloque", res_bloques1$bloque),
+  `Media (Ȳ_b)` = round(res_bloques1$media, 3),
+  `Varianza (S²_b)` = round(res_bloques1$varianza, 3)
+)
+
+kable(
+  tabla_bloques_s1, 
+  align = "llcc", 
+  caption = "Serie 1: Evaluación por Bloques"
+)
+```
+
+En la serie 1, las medias de los cuatro bloques son relativamente
+cercanas a cero, aunque aumentan desde el primer bloque hasta el tercero
+y luego disminuyen ligeramente. Esto sugiere que la media de la serie
+transformada no es completamente estable entre los bloques.
+
+Las varianzas son 132,43; 181,40; 217,21 y 183,97. Se observa que la
+variabilidad aumenta hasta el tercer bloque y disminuye en el cuarto,
+por lo que tampoco permanece exactamente constante.
+
+En consecuencia, dado que tanto la media como la varianza experimentan
+fluctuaciones apreciables entre los bloques, se concluye que la serie no
+es estacionaria.
+
+```{r}
+res_ic1 <- intervalos_media(serie1_d1)
+
+tabla_ic_s1 <- tibble(
+  Serie = "Serie 1",
+  Método = c("Ingenuo", "Largo plazo (Bartlett)"),
+  Media = round(res_ic1$media, 4),
+  `Error estándar` = round(res_ic1$error_estandar, 4),
+  `IC 95 % inferior` = round(res_ic1$inferior, 4),
+  `IC 95 % superior` = round(res_ic1$superior, 4)
+)
+
+
+kable(
+  tabla_ic_s1, 
+  align = "llccccc",
+  caption = "Serie 1: Intervalos de confianza al 95 % para la media"
+)
+```
+
+Para la serie 1, la media de la primera diferencia es aproximadamente
+0,19 miles de pesos por semana, lo que representa un aumento promedio
+cercano a $\$190$ semanales en el valor promedio de compra de la cadena
+durante el periodo analizado.
+
+El intervalo de confianza ingenuo del $95\%$ va de $−1,653$ a $2,033$ miles de
+pesos, mientras que el intervalo basado en la varianza de largo plazo va
+de $−0,814$ a $1,194$ miles de pesos. Ambos incluyen el cero, por lo que no
+hay evidencia suficiente para afirmar que el cambio promedio semanal sea
+distinto de cero.
+
+Los intervalos difieren porque el error estándar ingenuo utiliza la
+varianza muestral sin considerar explícitamente la autocorrelación,
+mientras que el de largo plazo incorpora la dependencia temporal
+mediante el núcleo de Bartlett. En este caso, el segundo intervalo es
+más estrecho porque la varianza de largo plazo estimada es menor.
+
+Por tanto, el intervalo basado en la varianza de largo plazo es el más
+apropiado para considerar la dependencia temporal, siempre que se
+cumplan las condiciones necesarias para su estimación. Como la
+estacionariedad y la ergodicidad no se han establecido completamente,
+esta conclusión debe interpretarse con cautela. Finalmente, la media
+estimada corresponde al cambio promedio semanal del valor de compra, no
+al nivel del valor promedio de compra original ni a un pronóstico de las
+próximas cuatro semanas.
+:::
+
+### Serie 2: Clientes registrados en una tienda en línea
+
+::: panel-tabset
+#### ACF y PACF muestrales
+
+```{r}
+# Series transformada
+serie2_d1 <- diferenciar(serie2$y, d = 1)
+```
+
+```{r}
+# Correlograma de la serie transformada
+
+# Serie 2: primera diferencia ordinaria
+resultado2 <- correlograma(serie2_d1)
+resultado2$grafico
+```
+
+La serie 2 transformada presenta una dependencia de corto plazo. En la
+ACF, el rezago 1 sobresale claramente. El rezago 13 también supera
+ligeramente las bandas de ruido blanco y de Bartlett, mientras que
+algunos otros rezagos se acercan a sus límites. Sin embargo, no se
+observa un patrón repetitivo que sugiera estacionalidad.
+
+En la PACF sobresalen principalmente los rezagos 1 y 2, lo que indica
+que la dependencia se concentra en las primeras semanas. La banda de
+ruido blanco permite evaluar si cada autocorrelación individual es
+distinta de cero, mientras que la banda de Bartlett se utiliza en la ACF
+para evaluar las autocorrelaciones teniendo en cuenta las de los rezagos
+anteriores.
+
+En comparación con la serie original, la primera diferencia eliminó el
+decaimiento lento de las autocorrelaciones y dejó una dependencia más
+corta, principalmente negativa.
+
+#### Ljung Box
+
+Prueba Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{24}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$ Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{m} \frac{{r}_h^2}{T - h} $$ Distribución
+
+$$Q \sim \chi^2_{24}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 24}$$
+
+```{r}
+#Ljung Box
+r2 <- acf_muestral(serie2_d1, m = 24)
+resultado_ljung2 <- ljung_box(r2, T = length(serie2_d1), m = 24)
+
+cat(
+  "Serie 2 → Q =", round(resultado_ljung2$estadistico, 4),
+  "| gl =", resultado_ljung2$grados_libertad,
+  "| valor crítico =", round(resultado_ljung2$valor_critico, 4),
+  "| p-valor =", round(resultado_ljung2$valor_p, 4), "\n"
+)
+```
+
+Se eligió $m = 24$ porque coincide con el correlograma de la sección 3,
+igual que en la serie 1. Cubre el mes, el trimestre y casi medio año,
+que son los ciclos revisados al estudiar la estacionalidad, y queda muy
+por debajo de $n/4$, con $n = 179$. Un m muy grande diluye la prueba y uno
+muy pequeño no vería la dependencia de rezagos lejanos.
+
+Con ese m, Ljung–Box da $Q = 59,32$, frente a un valor crítico de 36,415,
+y un valor p cercano a 0,0001. Se rechaza la hipótesis de que no hay
+autocorrelación, así que la serie transformada todavía tiene dependencia
+temporal.
+
+En la ACF solo el rezago 1 sobresale con claridad, con un valor negativo
+cercano a −0,33. El resto queda casi siempre dentro de las bandas, con
+unos pocos rezagos (como el 13) apenas por fuera y sin un patrón que se
+repita. En la PACF destacan los rezagos 1 y 2, ambos negativos, y
+después no hay nada claro. La dependencia está concentrada en las dos
+primeras semanas y no hay memoria larga.
+
+Esa forma es compatible con un `MA(1)` con coeficiente negativo, cuya ACF
+se corta en el rezago 1, o con un `AR(2)` con coeficientes negativos, por
+los rezagos 1 y 2 de la PACF. 
+
+Por otra parte, la serie transformada no es compatible con ruido blanco, dado que la prueba de Ljung–Box rechaza la hipótesis nula de ausencia de autocorrelación conjunta; tampoco con una caminata aleatoria, cuya serie diferenciada debería comportarse como ruido blanco; ni con un proceso de memoria larga, puesto que la ACF decae de inmediato y no presenta persistencia en rezagos lejanos.
+
+#### Estacionariedad y ergodicidad
+
+```{r}
+res_bloques2 <- comparar_bloques(serie2_d1)
+
+# Reorganizamos
+tabla_bloques_s2 <- tibble(
+  Serie = "Serie 2",
+  Bloque = paste("Bloque", res_bloques2$bloque),
+  `Media (Ȳ_b)` = round(res_bloques2$media, 3),
+  `Varianza (S²_b)` = round(res_bloques2$varianza, 3)
+)
+
+
+kable(
+  tabla_bloques_s2, 
+  align = "llcc", 
+  caption = "Serie 2: Evaluación por Bloques"
+)
+```
+
+En la serie 2, las medias de los cuatro bloques son
+`r paste(format(round(res_bloques2$media, 3), decimal.mark = ","), collapse = "; ")`
+y las varianzas son
+`r paste(format(round(res_bloques2$varianza, 2), decimal.mark = ","), collapse = "; ")`.
+
+La varianza más alta (`r format(round(max(res_bloques2$varianza), 2), decimal.mark = ",")`) es
+`r format(round(max(res_bloques2$varianza) / min(res_bloques2$varianza), 1), decimal.mark = ",")`
+veces la más baja (`r format(round(min(res_bloques2$varianza), 2), decimal.mark = ",")`). Como la
+estacionariedad débil exige media y varianza constantes en el tiempo, esta diferencia entre
+bloques indica que la serie transformada no es estrictamente estacionaria.
+
+```{r}
+res2 <- intervalos_media(serie2_d1)
+
+tabla_ic_s2 <- tibble(
+  Serie = "Serie 2",
+  Método = c("Ingenuo", "Largo plazo (Bartlett)"),
+  Media = round(res2$media, 4),
+  `Error estándar` = round(res2$error_estandar, 4),
+  `IC 95 % inferior` = round(res2$inferior, 4),
+  `IC 95 % superior` = round(res2$superior, 4)
+)
+
+
+kable(tabla_ic_s2, align = "llccccc",
+      caption = "Serie 2: Intervalos de confianza al 95 % para la media")
+```
+
+En la serie 2, la media de la primera diferencia es de 0,754 cientos de
+clientes por semana, lo que representa un aumento promedio de
+aproximadamente 75 clientes registrados semanalmente.
+
+El intervalo ingenuo del 95 % va de 0,102 a 1,406 cientos de clientes,
+mientras que el intervalo basado en la varianza de largo plazo va de
+0,367 a 1,141 cientos de clientes. Este último es más estrecho porque
+incorpora la autocorrelación mediante el núcleo de Bartlett y, en este
+caso, produce un error estándar menor. Por ello, es el más apropiado
+para considerar la dependencia temporal.
+
+Ambos intervalos son positivos, lo que aporta evidencia de un
+crecimiento promedio semanal. Sin embargo, esta media representa el
+cambio en el número de clientes, no el total registrado.
+:::
+
+### Serie 3: Ventas diarias de un supermercado de barrio
+
+::: panel-tabset
+#### ACF y PACF muestrales
+
+```{r}
+# Series transformada
+serie3_D1 <- diferenciar(serie3$y, D = 1, s = 7)
+```
+
+```{r}
+# Correlograma de la serie transformada
+
+# Serie 3: diferencia estacional de período 7
+resultado3 <- correlograma(serie3_D1)
+resultado3$grafico
+```
+
+La serie 3 transformada presenta una dependencia positiva de corto
+plazo. En la ACF, los rezagos 1 a 4 son positivos y disminuyen
+gradualmente, mientras que el rezago 5 queda dentro de las bandas. Esto
+indica que las ventas de días cercanos todavía presentan cierta
+relación. El rezago 7 es negativo y sobresale, al igual que algunos
+rezagos posteriores, lo que sugiere que la diferencia estacional no
+eliminó toda la dependencia asociada al ciclo semanal.
+
+En la PACF sobresalen los rezagos 1, 2, 7, 8, 9, 14 y 21. Los rezagos 7,
+14 y 21 presentan valores negativos, lo que sugiere que todavía queda
+cierta relación asociada al ciclo semanal.
+
+La banda de ruido blanco permite evaluar si cada autocorrelación
+individual es distinta de cero, mientras que la banda de Bartlett se
+utiliza en la ACF para evaluar las autocorrelaciones teniendo en cuenta
+las de los rezagos anteriores. En este caso, los rezagos 1 a 4 superan
+la banda de Bartlett, pero el rezago 5 queda dentro de ella.
+
+La diferencia estacional redujo el patrón semanal marcado de la serie
+original, aunque persiste una dependencia negativa en el rezago 7 y sus
+múltiplos. Esto podría indicar una posible sobrediferenciación.
+
+#### Ljung Box
+
+Prueba Hipótesis
+
+$$ H_0:\rho_1=\rho_2=\cdots=\rho_{14}=0 $$
+$$ H_1:\text{al menos una }\rho_h\neq0 $$ Estadístico de Prueba
+
+$$Q = T(T + 2) \sum_{h=1}^{m} \frac{{r}_h^2}{T - h} $$ Distribución
+
+$$Q \sim \chi^2_{14}$$
+
+Región de Rechazo
+
+$$Q > \chi^2_{0.95, 14}$$
+
+```{r}
+#Ljung Box
+r3 <- acf_muestral(serie3_D1, m = 14)
+resultado_ljung3 <- ljung_box(r3, T = length(serie3_D1), m = 14)
+cat(
+  "Serie 3 → Q =", round(resultado_ljung3$estadistico, 4),
+  "| gl =", resultado_ljung3$grados_libertad,
+  "| valor crítico =", round(resultado_ljung3$valor_critico, 4),
+  "| p-valor =", round(resultado_ljung3$valor_p, 4), "\n"
+)
+```
+
+Se eligió $m = 14$ porque la serie es diaria con ciclo semanal, y 14 cubre
+dos ciclos completos (los rezagos 7 y 14), que son los que importan para
+saber si después de la transformación queda dependencia ligada a la
+semana. Además, queda muy por debajo de n/4. A diferencia de las series
+semanales, aquí no se usó el 24 del correlograma, sino un múltiplo del
+período, para que la prueba abarque ciclos semanales completos. La decisión se mantiene con m = 7, 21 y 24.
+
+Con ese m, Ljung–Box da $Q = 84,74$, frente a un valor crítico de 23,68, y
+un valor p prácticamente cero. Se rechaza la hipótesis de que no hay
+autocorrelación, así que la serie transformada todavía tiene dependencia
+temporal.
+
+En la ACF los rezagos 1 a 4 son positivos y bajan poco a poco (de cerca
+de $0,36$ a $0,25$), y desde el 5 quedan dentro de las bandas. El rezago 7
+es negativo (cerca de $−0,25$). En la PACF el rezago 1 es positivo (cerca
+de $0{,}36$) y el rezago 7 es el más grande de todos, negativo (cerca de
+$−0,38$), con otros rezagos fuera de la banda en 8, 9 y 14. La dependencia
+es corta, de unos cuatro días, y queda además un efecto ligado al rezago
+7 que la transformación no eliminó por completo.
+
+La ACF no se corta de golpe en un rezago, sino que se apaga de forma
+gradual, lo que es compatible con un `AR` de orden bajo. Pero los valores
+de la PACF en el 7 y el 14 indican que un `AR` de orden bajo no basta,
+porque queda estructura semanal. No es compatible con ruido blanco,
+porque Ljung–Box rechaza, ni con una caminata aleatoria, cuya serie
+diferenciada sería ruido blanco, ni con memoria larga, porque después
+del rezago 4 la ACF queda dentro de las bandas.
+
+#### Estacionariedad y ergodicidad
+
+```{r}
+res_bloques3 <- comparar_bloques(serie3_D1)
+
+
+tabla_bloques_s3 <- tibble(
+  Serie = "Serie 3",
+  Bloque = paste("Bloque", res_bloques3$bloque),
+  `Media (Ȳ_b)` = round(res_bloques3$media, 3),
+  `Varianza (S²_b)` = round(res_bloques3$varianza, 3)
+)
+
+kable(
+  tabla_bloques_s3, 
+  align = "llcc", 
+  caption = "Serie 3: Evaluación por Bloques"
+)
+```
+
+Para la serie 3, las medias de los bloques alternan entre valores
+negativos y positivos: −2,49; 2,64; 0,56 y 3,20. Aunque no siguen una
+tendencia clara, sí muestran cambios en el promedio de las variaciones
+entre bloques.
+
+Las varianzas son 253,59; 203,44; 119,39 y 162,62. La variabilidad
+disminuye considerablemente hasta el tercer bloque y luego aumenta en el
+cuarto.
+
+En general, la serie 3 presenta cambios importantes en su variabilidad
+entre bloques, especialmente por la reducción observada en el tercero.
+Esto podría indicar que la dispersión de las ventas semanales, una vez
+eliminada la estacionalidad, no es completamente uniforme durante el
+periodo analizado. Por lo tanto, la serie no es estacionaria, ya que los
+requisitos de la estacionariedad débil exigen que tanto la media como la
+varianza sean constantes a lo largo del tiempo, y aquí se observan
+fluctuaciones notables en la varianza entre los bloques.
+
+```{r}
+res_ic3 <- intervalos_media(serie3_D1)
+
+
+tabla_ic_s3 <- tibble(
+  Serie = "Serie 3",
+  Método = c("Ingenuo", "Largo plazo (Bartlett)"),
+  Media = round(res_ic3$media, 4),
+  `Error estándar` = round(res_ic3$error_estandar, 4),
+  `IC 95 % inferior` = round(res_ic3$inferior, 4),
+  `IC 95 % superior` = round(res_ic3$superior, 4)
+)
+
+
+kable(
+  tabla_ic_s3, 
+  align = "llccccc",
+  caption = "Serie 3: Intervalos de confianza al 95 % para la media"
+)
+```
+
+En la serie 3, la media de la diferencia estacional de periodo 7 es de
+aproximadamente 0,96 millones de pesos. Esto representa un aumento
+promedio cercano a $\$960.000$ en las ventas diarias respecto al mismo día
+de la semana anterior.
+
+El intervalo ingenuo del $95\%$ va de −0,990 a 2,911 millones de pesos,
+mientras que el intervalo basado en la varianza de largo plazo va de
+−1,929 a 3,850 millones. En este caso, el segundo intervalo es más
+amplio porque incorpora la autocorrelación y produce un error estándar
+mayor. Como se busca considerar la dependencia temporal, este intervalo
+es el más apropiado.
+
+Ambos intervalos incluyen el cero, por lo que no hay evidencia
+suficiente para afirmar que el cambio promedio de las ventas respecto al
+mismo día de la semana anterior sea distinto de cero. Esta media
+describe la variación semanal de las ventas, no el nivel de ventas
+diarias.
+:::
+:::
