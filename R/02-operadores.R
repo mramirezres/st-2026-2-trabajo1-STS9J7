@@ -117,3 +117,79 @@ descomposicion_clasica <- function(y, periodo, tipo = "aditiva") {
   )
 }
 
+
+#FUNCION DIFERENCIAR
+diferenciar <- function(y, d = 0, D = 0, s = 1) {
+  
+  if (!is.numeric(y)) {
+    stop("La serie debe ser numérica.")
+  }
+  
+  if (any(is.na(y))) {
+    stop("La serie contiene valores faltantes.")
+  }
+  
+  if (d < 0 || d != as.integer(d)) {
+    stop("d debe ser un entero mayor o igual a 0.")
+  }
+  
+  if (D < 0 || D != as.integer(D)) {
+    stop("D debe ser un entero mayor o igual a 0.")
+  }
+  
+  if (s < 1 || s != as.integer(s)) {
+    stop("s debe ser un entero mayor o igual a 1.")
+  }
+  
+  resultado <- y
+  
+  # Diferencias ordinarias
+  if (d > 0) {
+    for (i in 1:d) {
+      resultado <- resultado[2:length(resultado)] -
+        resultado[1:(length(resultado) - 1)]
+    }
+  }
+  
+  # Diferencias estacionales
+  if (D > 0) {
+    for (i in 1:D) {
+      
+      if (length(resultado) <= s) {
+        stop("No hay suficientes observaciones para la diferencia estacional.")
+      }
+      
+      resultado <- resultado[(s + 1):length(resultado)] -
+        resultado[1:(length(resultado) - s)]
+    }
+  }
+  
+  return(resultado)
+}
+
+
+#POLINOMIO DE REZAGO
+polinomio_rezago <- function(coef) {
+  
+  if (!is.numeric(coef)) {
+    stop("Los coeficientes deben ser numéricos.")
+  }
+  
+  if (length(coef) < 1) {
+    stop("Debe existir al menos un coeficiente.")
+  }
+  
+  polinomio <- c(1, coef)
+  
+  # Calcular las raíces
+  raices <- polyroot(polinomio)
+  
+  modulo <- Mod(raices)
+  
+  resultado <- data.frame(
+    raiz = raices,
+    modulo = modulo
+  )
+  
+  return(resultado)
+}
