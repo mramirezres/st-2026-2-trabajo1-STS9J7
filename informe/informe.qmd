@@ -695,3 +695,840 @@ millones a mediados de marzo y otro de aproximadamente +22 millones en
 agosto. Sin embargo, son puntuales y no modifican el comportamiento
 general del residuo.
 :::
+
+
+## Operador de rezago
+
+::: panel-tabset
+### Serie 1: Valor promedio semanal de la compra en una cadena de tiendas
+
+::: panel-tabset
+#### Proponer la transformación
+
+En el diagnóstico del punto 3 observamos que la serie 1 tiene una
+tendencia creciente, una ACF que decae lentamente y una autocorrelación
+alta en el primer rezago ($r_1=0.8546$). Por eso, una primera candidata
+es aplicar una diferencia ordinaria: $$
+\nabla Y_t=Y_t-Y_{t-1}
+$$
+
+Su operador de rezago es: $$
+1-B
+$$
+
+La candidata 2 corresponde a la segunda diferencia ordinaria, cuyo
+polinomio de rezago es $(1-B)^2=1-2B+B^2$. Se propone para evaluar si
+una segunda diferenciación ayuda a eliminar la tendencia persistente
+observada en la serie 1, en caso de que la primera diferencia no sea
+suficiente.
+
+#### Calcular las raíces
+
+```{r}
+# Polinomio de la primera diferencia
+raices_serie1 <- polinomio_rezago(c(-1))
+
+raices_serie1
+```
+
+El polinomio $1-B$ tiene una única raíz igual a 1, cuyo módulo también
+es 1. Esta raíz corresponde al factor de primera diferencia ordinaria,
+que busca eliminar una posible tendencia estocástica de la serie 1. Sin
+embargo, todavía debemos comprobar si esta transformación es necesaria y
+suficiente.
+
+```{r}
+# Segunda diferencia
+raices_serie1_2 <- polinomio_rezago(c(-2, 1))
+raices_serie1_2
+```
+
+El polinomio de la segunda diferencia ordinaria tiene dos raíces
+aproximadamente iguales a 1, ambas con módulo 1. Esto indica que el
+factor $1-B$ aparece dos veces, por lo que la transformación aplica dos
+diferencias ordinarias consecutivas.
+
+#### Representar la raíz en el plano complejo
+
+```{r}
+# Definir los puntos del círculo unitario (radio = 1)
+circulo <- data.frame(
+  x = cos(seq(0, 2 * pi, length.out = 200)),
+  y = sin(seq(0, 2 * pi, length.out = 200))
+)
+
+# Gráfico para la Candidata 1
+g1 <- ggplot(raices_serie1, aes(x = Re(raiz), y = Im(raiz))) +
+  geom_hline(yintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_vline(xintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_path(data = circulo, aes(x = x, y = y), color = "gray40", linetype = "dotted") +
+  geom_point(color = "purple", size = 3) +
+  annotate("text", x = 1, y = 0.15, label = "Raíz = 1", color = "purple") +
+  coord_equal(xlim = c(-1.5, 1.5), ylim = c(-1.2, 1.2)) +
+  labs(
+    title = "Candidata 1: 1 - B",
+    x = "Parte real",
+    y = "Parte imaginaria"
+  ) +
+  theme_minimal()
+
+# Gráfico para la Candidata 2
+g2 <- ggplot(raices_serie1_2, aes(x = Re(raiz), y = Im(raiz))) +
+  geom_hline(yintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_vline(xintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_path(data = circulo, aes(x = x, y = y), color = "gray40", linetype = "dotted") +
+  geom_point(color = "purple", size = 3) +
+  annotate("text", x = 0.85, y = 0.15, label = "Raíz doble = 1", color = "purple") +
+  coord_equal(xlim = c(-1.5, 1.5), ylim = c(-1.2, 1.2)) +
+  labs(
+    title = "Candidata 2: (1 - B)²",
+    x = "Parte real",
+    y = "Parte imaginaria"
+  ) +
+  theme_minimal()
+
+(g1 | g2) + 
+  plot_annotation(
+    title = "Plano complejo de raíces de los operadores - Serie 1",
+    theme = theme(plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+  )
+```
+
+En el gráfico de la izquierda (Candidata 1) se observa una única raíz simple ubicada sobre el círculo unitario en el punto $(1,0)$. Esto significa que su módulo es igual a 1, por lo que está asociada a la presencia de una raíz unitaria. Este factor $1-B$ se propone para eliminar una posible tendencia estocástica mediante una primera diferencia ordinaria.
+
+En el gráfico de la derecha (Candidata 2), la transformación presenta una raíz doble ubicada exactamente en el mismo punto $(1,0)$ sobre la circunferencia unitaria. Esto ocurre porque la segunda candidata aplica dos veces consecutivas el factor $1-B$, lo que equivale a realizar dos diferencias ordinarias. La comparación gráfica permite diferenciar visualmente la multiplicidad de la raíz unitaria $B=1$ entre una primera y una segunda diferenciación.
+
+#### Comparación de las transformaciones
+
+```{r}
+# Varianza muestral y autocorrelación de rezago 1
+
+# Serie original y sus transformaciones
+y1 <- serie1$y
+
+y1_d1 <- diferenciar(y1, d = 1)
+y1_d2 <- diferenciar(y1, d = 2)
+
+# Tabla de varianzas y autocorrelaciones
+tabla_serie1 <- data.frame(
+  Transformacion = c(
+    "Original",
+    "Primera diferencia",
+    "Segunda diferencia"
+  ),
+  Varianza = c(
+    var(y1),
+    var(y1_d1),
+    var(y1_d2)
+  ),
+  r1 = c(
+    acf_muestral(y1, 1)[1],
+    acf_muestral(y1_d1, 1)[1],
+    acf_muestral(y1_d2, 1)[1]
+  )
+)
+
+tabla_serie1$Varianza <- round(tabla_serie1$Varianza, 4)
+tabla_serie1$r1 <- round(tabla_serie1$r1, 4)
+
+tabla_serie1
+```
+
+La serie original presenta una varianza de 631.7177 y una
+autocorrelación de rezago 1 de 0.8546, lo que indica una fuerte
+dependencia entre observaciones consecutivas, coherente con la tendencia
+creciente observada. Después de aplicar la primera diferencia, la
+varianza disminuye a 175.9415 y la autocorrelación pasa a -0.3650, lo
+que sugiere que esta transformación reduce la tendencia y la
+persistencia de la serie. En cambio, la segunda diferencia aumenta la
+varianza a 480.6998 y hace que la autocorrelación sea más negativa
+(-0.5810), lo que puede indicar una diferenciación excesiva.
+
+```{r}
+# Medias observadas
+media_d1 <- mean(y1_d1)
+media_d2 <- mean(y1_d2)
+
+# Medias esperadas según las transformaciones
+media_d1_esperada <- (y1[length(y1)] - y1[1]) /
+  (length(y1) - 1)
+
+media_d2_esperada <- (
+  (y1[length(y1)] - y1[length(y1) - 1]) -
+  (y1[2] - y1[1])
+) / (length(y1) - 2)
+
+# Comparación
+data.frame(
+  Transformacion = c("Primera diferencia", "Segunda diferencia"),
+  Media_observada = c(media_d1, media_d2),
+  Media_esperada = c(media_d1_esperada, media_d2_esperada)
+)
+
+stopifnot(
+  isTRUE(all.equal(media_d1, media_d1_esperada)),
+  isTRUE(all.equal(media_d2, media_d2_esperada))
+)
+
+cat("Las medias coinciden con lo esperado.\n")
+```
+
+Las medias observadas de ambas transformaciones coinciden con las
+esperadas según las propiedades de las diferencias ordinarias. La
+primera diferencia presenta una media de 0.1899 y la segunda, de
+-0.0525. Esto verifica que las medias calculadas concuerdan con lo
+esperado matemáticamente, aunque no demuestra por sí solo que las series
+transformadas sean estacionarias.
+
+```{r}
+# Varianza de la serie original
+gamma0 <- var(y1)
+
+# Autocovarianza muestral de rezago 1
+gamma1 <- cov(y1[-length(y1)], y1[-1])
+
+# Varianza de la primera diferencia según la identidad
+varianza_identidad <- 2 * gamma0 - 2 * gamma1
+
+# Varianza calculada directamente
+varianza_directa <- var(y1_d1)
+
+data.frame(
+  Varianza_identidad = varianza_identidad,
+  Varianza_directa = varianza_directa
+)
+```
+
+Al aplicar la identidad de la varianza de la primera diferencia, se
+obtiene un valor de 178.2824, cercano a la varianza muestral calculada
+directamente, que es 175.9415. La pequeña diferencia se debe a las
+convenciones de cálculo utilizadas para las cantidades muestrales. Ambos
+resultados muestran una reducción considerable de la varianza respecto a
+la serie original, lo que respalda el uso de la primera diferencia.
+
+#### Conclusión
+
+En conjunto, los resultados favorecen la primera diferencia ordinaria
+como transformación candidata para la serie 1. Esta reduce la varianza y
+la autocorrelación de rezago 1, mientras que la segunda diferencia
+aumenta la varianza y produce una autocorrelación más negativa, lo que
+sugiere una posible diferenciación excesiva. La identidad de la varianza
+respalda la reducción de variabilidad observada. Por tanto, se elige la
+primera diferencia, pues parece suficiente para reducir la tendencia sin
+aplicar una segunda diferenciación que podría ser innecesaria.
+:::
+
+### Serie 2: Clientes registrados en una tienda en línea
+
+::: panel-tabset
+#### Proponer la transformación
+
+La primera candidata es la primera diferencia ordinaria, porque busca
+eliminar una posible tendencia estocástica presente en la serie. $$
+\nabla Y_t=Y_t-Y_{t-1}
+$$
+
+Su polinomio de rezago es: $$
+1-B
+$$
+
+La segunda candidata es la segunda diferencia ordinaria. La proponemos
+para evaluar si una segunda diferenciación resulta necesaria en caso de
+que la primera no sea suficiente para estabilizar la serie.
+
+$$
+(1-B)^2=1-2B+B^2
+$$
+
+#### Calcular las raíces
+
+```{r}
+# Candidata 1: primera diferencia de la serie 2
+raices_serie2_1 <- polinomio_rezago(c(-1))
+
+raices_serie2_1
+```
+
+La raíz es $B=1$, con módulo 1. Esta raíz unitaria está asociada al
+factor de primera diferencia, que se propone para eliminar la tendencia.
+
+```{r}
+# Candidata 2: segunda diferencia de la serie 2
+raices_serie2_2 <- polinomio_rezago(c(-2, 1))
+
+raices_serie2_2
+```
+
+Esta transformación tiene una raíz doble en $B=1$, porque aplica dos
+veces el factor $1-B$.
+
+#### Representar la raíz en el plano complejo
+
+```{r}
+# Unir las raíces de las dos candidatas
+raices_serie2 <- rbind(
+  raices_serie2_1,
+  raices_serie2_2
+)
+
+# Definir los puntos del círculo unitario
+circulo <- data.frame(
+  x = cos(seq(0, 2 * pi, length.out = 200)),
+  y = sin(seq(0, 2 * pi, length.out = 200))
+)
+
+# Graficar las raíces con el círculo unitario
+ggplot(raices_serie2, aes(x = Re(raiz), y = Im(raiz))) +
+  geom_hline(yintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_vline(xintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_path(data = circulo, aes(x = x, y = y), color = "gray40", linetype = "dotted") +
+  geom_point(color = "purple", size = 3) +
+  annotate("text", x = 0.7, y = 0.15, label = "Raíces en B = 1", color = "purple") +
+  coord_equal(xlim = c(-1.5, 1.5), ylim = c(-1.2, 1.2)) +
+  labs(
+    title = "Raíces de las transformaciones candidatas - Serie 2",
+    x = "Parte real",
+    y = "Parte imaginaria"
+  ) +
+  theme_minimal()
+```
+
+En el gráfico, las raíces de ambas transformaciones se ubican en el
+punto $B=1$, sobre el círculo unitario. Aunque las raíces coinciden en
+su ubicación, la primera diferencia tiene una raíz simple, mientras que
+la segunda diferencia tiene una raíz doble, pues aplica dos veces el
+factor $1-B$. Ambas transformaciones buscan eliminar una posible
+tendencia estocástica de la serie 2, pero la segunda aplica una
+diferenciación adicional.
+
+#### Comparación de las transformaciones
+
+```{r}
+# Varianza muestral y autocorrelacion
+# Serie original y sus transformaciones
+y2 <- serie2$y
+
+y2_d1 <- diferenciar(y2, d = 1)
+y2_d2 <- diferenciar(y2, d = 2)
+
+# Tabla de varianzas y autocorrelaciones
+tabla_serie2 <- data.frame(
+  Transformacion = c(
+    "Original",
+    "Primera diferencia",
+    "Segunda diferencia"
+  ),
+  Varianza = c(
+    var(y2),
+    var(y2_d1),
+    var(y2_d2)
+  ),
+  r1 = c(
+    acf_muestral(y2, 1)[1],
+    acf_muestral(y2_d1, 1)[1],
+    acf_muestral(y2_d2, 1)[1]
+  )
+)
+
+tabla_serie2$Varianza <- round(tabla_serie2$Varianza, 4)
+tabla_serie2$r1 <- round(tabla_serie2$r1, 4)
+
+tabla_serie2
+```
+
+La serie original presenta una varianza de 1365.5512 y una
+autocorrelación de rezago 1 de 0.9739, lo que indica una fuerte
+dependencia entre observaciones consecutivas, coherente con la tendencia
+creciente observada. Al aplicar la primera diferencia, la varianza
+disminuye considerablemente a 19.8156 y la autocorrelación pasa a
+-0.3315, lo que sugiere que esta transformación reduce la tendencia y la
+persistencia de la serie. En cambio, la segunda diferencia aumenta la
+varianza a 53.0394 y hace que la autocorrelación sea más negativa
+(-0.5795), lo que puede indicar una diferenciación excesiva. Por tanto,
+la primera diferencia parece ser la candidata más adecuada.
+
+```{r}
+# Medias observadas
+media_d1_2 <- mean(y2_d1)
+media_d2_2 <- mean(y2_d2)
+
+# Medias esperadas
+media_d1_esperada_2 <- (y2[length(y2)] - y2[1]) /
+  (length(y2) - 1)
+
+media_d2_esperada_2 <- (
+  (y2[length(y2)] - y2[length(y2) - 1]) -
+  (y2[2] - y2[1])
+) / (length(y2) - 2)
+
+# Comparación de medias
+tabla_medias_serie2 <- data.frame(
+  Transformacion = c("Primera diferencia", "Segunda diferencia"),
+  Media_observada = c(media_d1_2, media_d2_2),
+  Media_esperada = c(media_d1_esperada_2, media_d2_esperada_2)
+)
+
+tabla_medias_serie2
+```
+
+Las medias observadas de ambas transformaciones coinciden con las medias
+esperadas según las propiedades de las diferencias ordinarias. La
+primera diferencia presenta una media de 0.7542 y la segunda, de
+-0.0112. Esto verifica que las medias calculadas concuerdan con lo
+esperado matemáticamente, aunque no demuestra por sí solo que las series
+transformadas sean estacionarias.
+
+```{r}
+# Autocovarianzas de la serie original
+n2 <- length(y2)
+media_y2 <- mean(y2)
+
+gamma0_2 <- mean((y2 - media_y2)^2)
+
+gamma1_2 <- mean(
+  (y2[2:n2] - media_y2) *
+  (y2[1:(n2 - 1)] - media_y2)
+)
+
+# Aplicar la identidad
+varianza_identidad_2 <- 2 * gamma0_2 - 2 * gamma1_2
+
+# Varianza muestral de la primera diferencia
+varianza_directa_2 <- var(y2_d1)
+
+data.frame(
+  Varianza_identidad = varianza_identidad_2,
+  Varianza_directa = varianza_directa_2
+)
+```
+
+La identidad teórica
+$\operatorname{Var}(\nabla Y_t)=2\gamma(0)-2\gamma(1)$ relaciona la
+varianza de las diferencias con la varianza y la autocovarianza de
+rezago 1 del proceso original. Al estimar estas cantidades con la serie
+2, se obtiene 56.04387, mientras que la varianza muestral de la primera
+diferencia es 19.81564. La diferencia muestra que no debemos interpretar
+la identidad como una igualdad exacta entre estos estimadores muestrales
+bajo las convenciones utilizadas. La elección de la primera diferencia
+se apoya también en la fuerte reducción de la varianza y de la
+autocorrelación de rezago 1 observadas en la tabla comparativa.
+
+#### Conclusión
+
+En general, los resultados favorecen la primera diferencia ordinaria
+como transformación candidata para la serie 2. Esta reduce
+considerablemente la varianza y la autocorrelación de rezago 1, mientras
+que la segunda diferencia aumenta la varianza y produce una
+autocorrelación más negativa, lo que sugiere una posible diferenciación
+excesiva. Además, las medias observadas de ambas transformaciones
+coinciden con las esperadas matemáticamente. Aunque la identidad de la
+varianza permite relacionar la variabilidad de las diferencias con la
+varianza y la autocovarianza de rezago 1 de la serie original, los
+valores estimados no coinciden exactamente bajo las convenciones
+muestrales utilizadas. Por tanto, se selecciona la primera diferencia
+ordinaria como candidata para estabilizar la serie, evitando una segunda
+diferenciación que podría ser innecesaria.
+:::
+
+### Serie 3: Ventas diarias de un supermercado de barrio
+
+::: panel-tabset
+#### Proponer la transformación
+
+La primera transformación busca eliminar el patrón que se repite cada
+siete días: $$
+(1-B^7)Y_t=Y_t-Y_{t-7}
+$$
+
+Su polinomio de rezago es: $$
+1-B^7
+$$ Como la serie también presenta una tendencia, con la segunda
+candidata podemos evaluar una combinación de diferencia ordinaria y
+estacional:
+
+$$
+(1-B)(1-B^7)=1-B-B^7+B^8
+$$
+
+#### Calcular las raíces
+
+```{r}
+# Candidata 1: diferencia estacional semanal
+raices_serie3_1 <- polinomio_rezago(c(0, 0, 0, 0, 0, 0, -1))
+
+raices_serie3_1
+```
+
+El polinomio de la diferencia estacional semanal, $1-B^7$, tiene siete
+raíces, todas con módulo igual a 1. Esto indica que las raíces se
+encuentran sobre el círculo unitario y corresponden a las frecuencias
+asociadas al patrón que se repite cada siete días. La raíz $B=1$ está
+relacionada con el componente constante, mientras que las otras seis
+raíces representan las frecuencias estacionales. Por tanto, esta
+transformación se propone para eliminar la estacionalidad semanal de la
+serie 3.
+
+```{r}
+# Candidata 2: diferencia ordinaria y estacional
+raices_serie3_2 <- polinomio_rezago(c(-1, 0, 0, 0, 0, 0, -1, 1))
+
+raices_serie3_2
+```
+
+El polinomio de rezago de la segunda candidata,
+$(1-B)(1-B^7)=1-B-B^7+B^8$, tiene ocho raíces, todas con módulo igual
+a 1. La raíz $B=1$ aparece con multiplicidad dos, mientras que las otras
+seis raíces corresponden a las frecuencias estacionales del ciclo
+semanal. El factor $(1-B^7)$ busca eliminar la estacionalidad semanal, y
+el factor $(1-B)$ busca eliminar la tendencia que pueda permanecer. Esta
+transformación combina una diferencia estacional con una diferencia
+ordinaria; sin embargo, su conveniencia debe evaluarse comparando los
+resultados con los de la primera candidata, para determinar si la
+diferencia adicional es necesaria o si podría producir una
+diferenciación excesiva.
+
+#### Representar la raíz en el plano complejo
+
+```{r}
+# Definir los puntos del círculo unitario 
+circulo <- data.frame(
+  x = cos(seq(0, 2 * pi, length.out = 200)),
+  y = sin(seq(0, 2 * pi, length.out = 200))
+)
+
+# Primera candidata: 1 - B^7
+g1_s3 <- ggplot(raices_serie3_1, aes(x = Re(raiz), y = Im(raiz))) +
+  geom_hline(yintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_vline(xintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_path(data = circulo, aes(x = x, y = y), color = "gray40", linetype = "dotted") +
+  geom_point(color = "purple", size = 3) +
+  coord_equal(xlim = c(-1.5, 1.5), ylim = c(-1.2, 1.2)) +
+  labs(
+    title = "Candidata 1: 1 - B⁷",
+    x = "Parte real",
+    y = "Parte imaginaria"
+  ) +
+  theme_minimal()
+
+# Segunda candidata: (1 - B)(1 - B^7)
+g2_s3 <- ggplot(raices_serie3_2, aes(x = Re(raiz), y = Im(raiz))) +
+  geom_hline(yintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_vline(xintercept = 0, color = "gray60", linetype = "dashed") +
+  geom_path(data = circulo, aes(x = x, y = y), color = "gray40", linetype = "dotted") +
+  geom_point(color = "purple", size = 3) +
+  coord_equal(xlim = c(-1.5, 1.5), ylim = c(-1.2, 1.2)) +
+  labs(
+    title = "Candidata 2: (1 - B)(1 - B⁷)",
+    x = "Parte real",
+    y = "Parte imaginaria"
+  ) +
+  theme_minimal()
+
+# Unir ambos gráficos lado a lado
+(g1_s3 | g2_s3) +
+  plot_annotation(
+    title = "Plano complejo de las raíces de las transformaciones - Serie 3",
+    theme = theme(plot.title = element_text(size = 13, face = "bold", hjust = 0.5))
+  )
+```
+
+En el gráfico de la izquierda, correspondiente al polinomio $1 - B^7$, se observan siete raíces distribuidas simétricamente sobre el círculo unitario (todas con módulo igual a 1). Estas raíces corresponden a las frecuencias armónicas asociadas al ciclo estacional semanal de siete días.
+
+En el gráfico de la derecha, para el polinomio $(1 - B)(1 - B^7) = 1 - B - B^7 + B^8$, se observan ocho raíces en total, todas ubicadas sobre la circunferencia unitaria. La raíz en la coordenada $(1,0)$ ($B = 1$) aparece con multiplicidad dos (raíz doble), al estar presente tanto en el factor de diferencia ordinaria como en el estacional. El factor $(1 - B^7)$ busca eliminar la componente estacional semanal, mientras que el factor $(1 - B)$ busca remover una posible tendencia estocástica no estacional. Por tanto, esta segunda candidata combina una diferencia estacional con una diferencia ordinaria.
+
+#### Comparación de las transformaciones
+
+```{r}
+
+# Serie original
+y3 <- serie3$y
+
+# Primera candidata: diferencia estacional de periodo 7
+y3_D1 <- diferenciar(y3, D = 1, s = 7)
+
+# Segunda candidata: diferencia ordinaria y estacional
+y3_d1_D1 <- diferenciar(y3, d = 1, D = 1, s = 7)
+
+# Comparar varianza y autocorrelación de rezago 1
+comparacion_serie3 <- data.frame(
+  Serie = c("Original", "Diferencia estacional",
+            "Diferencia ordinaria y estacional"),
+  Varianza = c(var(y3), var(y3_D1), var(y3_d1_D1)),
+  r1 = c(acf_muestral(y3, 1)[1],
+         acf_muestral(y3_D1, 1)[1],
+         acf_muestral(y3_d1_D1, 1)[1])
+)
+
+comparacion_serie3
+
+```
+
+La serie 3 original presenta una varianza de 1323.1574 y una
+autocorrelación de rezago 1 de 0.5571, lo que refleja una variabilidad
+considerable y dependencia entre observaciones consecutivas. Al aplicar
+la diferencia estacional de periodo 7, la varianza disminuye a 187.2133
+y la autocorrelación a 0.3576, lo que sugiere una reducción de la
+variabilidad y de la dependencia temporal. Por su parte, la combinación
+de diferencias ordinaria y estacional produce una varianza de 240.3231 y
+una autocorrelación de -0.4380. Aunque esta última transformación reduce
+más la autocorrelación, aumenta la varianza respecto a la primera
+candidata y genera una autocorrelación negativa considerable, lo que
+puede ser una señal de diferenciación excesiva. Por tanto, inicialmente
+se prefiere la diferencia estacional, pues elimina el patrón semanal sin
+necesidad de aplicar una diferencia ordinaria adicional.
+
+```{r}
+# Medias observadas
+media_original <- mean(y3)
+media_D1 <- mean(y3_D1)
+media_d1_D1 <- mean(y3_d1_D1)
+
+# Media esperada de la diferencia estacional
+media_esperada_D1 <- (sum(y3[8:length(y3)]) -
+                      sum(y3[1:(length(y3)-7)])) /
+                      length(y3_D1)
+
+# Media esperada de la diferencia ordinaria y estacional
+media_esperada_d1_D1 <- (y3_D1[length(y3_D1)] -
+                         y3_D1[1]) /
+                         length(y3_d1_D1)
+
+# Tabla de verificación
+data.frame(
+  Transformacion = c("Diferencia estacional",
+                     "Diferencia ordinaria y estacional"),
+  Media_observada = c(media_D1, media_d1_D1),
+  Media_esperada = c(media_esperada_D1, media_esperada_d1_D1)
+)
+
+```
+
+En ambas transformaciones, la media observada coincide con la media
+esperada: 0.9603 para la diferencia estacional y −0.0548 para la
+combinación de diferencias ordinaria y estacional. Esto verifica que los
+resultados obtenidos al aplicar las transformaciones son consistentes
+con las propiedades matemáticas de cada operación.
+
+```{r}
+
+# Serie después de la diferencia estacional
+z <- y3_D1
+n <- length(z)
+media_z <- mean(z)
+
+# Autocovarianzas en los rezagos 0 y 1
+gamma0 <- mean((z - media_z)^2)
+gamma1 <- mean((z[2:n] - media_z) *
+               (z[1:(n-1)] - media_z))
+
+# Lado derecho de la identidad
+identidad <- 2 * gamma0 - 2 * gamma1
+
+# Varianza de la diferencia ordinaria
+varianza_diferencia <- var(diferenciar(z, d = 1))
+
+data.frame(
+  Gamma0 = gamma0,
+  Gamma1 = gamma1,
+  Resultado_identidad = identidad,
+  Varianza_diferencia = varianza_diferencia
+)
+
+```
+
+Para esta verificación se tomó como serie original la que resulta de
+aplicar la diferencia estacional de periodo 7, con el propósito de
+estudiar qué ocurre al añadir una diferencia ordinaria. Se obtuvo
+$\gamma(0)=186.2227$ y $\gamma(1)=66.94945$, por lo que el lado derecho
+de la identidad es 238.5465, mientras que la varianza muestral de la
+diferencia ordinaria adicional es 240.3231. Los resultados son cercanos,
+aunque no idénticos, debido a las convenciones de cálculo muestral. Esta
+comparación permite examinar el efecto de la diferencia adicional: junto
+con la autocorrelación negativa observada previamente para esta
+transformación, aporta evidencia para considerar si dicha diferencia es
+necesaria o si podría producir una diferenciación excesiva.
+
+Se hizo de esta manera para la serie 3 porque tiene una estacionalidad
+semanal clara. Por eso, primero se aplicó la diferencia estacional y
+luego se estudió el efecto de añadir la diferencia ordinaria. En las
+series 1 y 2, en cambio, las candidatas se construyeron a partir de
+diferencias ordinarias, ya que sus diagnósticos sugerían tendencia, pero
+no una estacionalidad definida.
+
+#### Conclusión
+
+En conclusión, para la serie 3 se selecciona inicialmente la diferencia
+estacional de periodo 7, ya que reduce considerablemente la varianza y
+la autocorrelación de rezago 1 sin necesidad de aplicar una diferencia
+ordinaria adicional. La segunda candidata presenta una autocorrelación
+negativa de −0.4380 y una varianza mayor que la primera candidata, lo
+que sugiere un posible exceso de diferenciación. Además, la comparación
+mediante la identidad de la varianza de una serie diferenciada permite
+examinar el efecto de aplicar una diferencia adicional. Por tanto, se
+prefiere la transformación $(1-B^7)Y_t$.
+:::
+
+
+### Ecuaciones en diferencias de Holt y Holt-Winters
+
+**Pronóstico de Holt**
+
+La función de pronóstico de Holt es
+
+$$
+\hat Y_{T+h}=L_T+\hat T_T h.
+$$
+
+Para aplicar el operador de rezago, consideramos que este actúa sobre
+$h$, de modo que
+
+$$
+B\hat Y_{T+h}=\hat Y_{T+h-1}.
+$$
+
+Primero aplicamos el operador $(1-B)$: $$
+\hat Y_{T+h}-\hat Y_{T+h-1}.
+$$
+
+Reemplazando la función de pronóstico:
+
+$$(L_T+\hat T_T h)$$ $$
+(L_T+\hat T_T(h-1)).
+$$
+
+Simplificando:
+
+$$
+\hat T_T.
+$$
+
+Por lo tanto, después de una diferencia queda una constante. Aplicamos
+nuevamente el operador $(1-B)$:
+
+$$
+(1-B)\hat T_T.
+$$
+
+Como $\hat T_T$ es constante respecto a $h$,
+
+$$
+\hat T_T-\hat T_T=0.
+$$
+
+Por tanto,
+
+$$
+\boxed{(1-B)^2\hat Y_{T+h}=0}
+$$
+
+para $h\geq 3$.
+
+La ecuación en diferencias asociada es
+
+$$
+(1-B)^2Y_h=0.
+$$
+
+Su polinomio característico es
+
+$$
+(1-r)^2=0,
+$$
+
+por lo que la única raíz es $r=1$, con multiplicidad 2. La solución
+general es
+
+$$
+\boxed{Y_h=A+Bh}.
+$$
+
+Esta solución representa una tendencia lineal. Por tanto, la raíz $r=1$,
+al estar repetida, corresponde a la componente de tendencia.
+
+Pronóstico de Holt-Winters aditivo
+
+El pronóstico de Holt-Winters aditivo es $$
+L_T+\hat T_T h+
+S_{T+h-s\lceil h/s\rceil}.
+$$
+
+Este pronóstico tiene dos componentes: una tendencia lineal y una
+componente estacional que se repite cada $s$ períodos.
+
+Aplicamos primero el operador estacional $(1-B^s)$.
+
+Para la parte de tendencia: $$
+(L_T+\hat T_T h)
+$$ $$
+(L_T+\hat T_T(h-s)).
+$$
+
+Simplificando:
+
+$$
+s\hat T_T.
+$$
+
+Como $s\hat T_T$ es una constante, al aplicar después $(1-B)$ obtenemos
+
+$$s\hat T_T-s\hat T_T=0.$$
+
+Ahora consideramos la componente estacional. Como esta se repite cada
+$s$ períodos,
+
+$$
+B^sS_h=S_{h-s}=S_h.
+$$
+
+Por lo tanto,
+
+$$
+S_h-S_{h-s}=0.
+$$
+
+Así, el operador $(1-B^s)$ elimina la componente estacional y deja una
+constante en la parte de tendencia. Al aplicar después $(1-B)$, también se
+elimina esta constante.
+
+Por tanto,
+
+$$
+\boxed{(1-B)(1-B^s)\hat Y_{T+h}=0}
+$$
+
+para $h\geq s+2$.
+
+La ecuación en diferencias asociada es
+
+$$
+(1-B)(1-B^s)Y_h=0.
+$$
+
+Su polinomio característico es
+
+$$
+(1-r)(1-r^s)=0.
+$$
+
+Las raíces corresponden a $r=1$ y a las soluciones de $r^s=1$
+
+La raíz $r=1$ aparece dos veces y corresponde a la tendencia lineal. Las
+demás raíces de $r^s=1$, que son las raíces $s$-ésimas de la unidad
+distintas de $1$, corresponden a la componente estacional.
+
+En consecuencia, la solución general puede expresarse como
+
+$$
+\boxed{
+Y_h=A+Bh+
+\sum_{j=1}^{s-1}C_j e^{2\pi ijh/s}
+}
+$$
+
+donde $A+Bh$ representa la tendencia y los términos restantes
+representan la estacionalidad de período $s$.
+
+**Demostración Teórica**
+
+La demostración matemática formal correspondientes a los desarrollos teóricos del Punto 4(d) se encuentra disponible en el documento de soporte anexo [@demostracionesPunto4D].
+:::
