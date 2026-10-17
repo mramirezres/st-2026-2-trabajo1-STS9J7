@@ -272,3 +272,85 @@ graficar_optimizacion <- function(resultado, parametro, titulo) {
 }
 
 
+# MAPA DE OPTIMIZACIÓN DE HOLT
+
+graficar_holt <- function(resultado) {
+  
+  grafico <- ggplot2::ggplot(
+    resultado$rejilla,
+    ggplot2::aes(
+      x = alpha,
+      y = beta,
+      fill = MSE
+    )
+  ) +
+    ggplot2::geom_tile() +
+    ggplot2::scale_fill_gradient(
+      low = "lavender",
+      high = "purple"
+    ) +
+    ggplot2::geom_point(
+      data = resultado$optimo,
+      ggplot2::aes(
+        x = alpha,
+        y = beta
+      ),
+      color = "red",
+      size = 4
+    ) +
+    ggplot2::labs(
+      title = "MSE según alpha y beta - Holt",
+      x = "alpha",
+      y = "beta",
+      fill = "MSE"
+    ) +
+    ggplot2::theme_minimal()
+  
+  return(grafico)
+}
+
+
+# MAPA DE OPTIMIZACIÓN DE HOLT-WINTERS
+graficar_hw <- function(resultado, titulo) {
+  
+  gamma_optimo <- resultado$optimo$gamma
+  
+  datos <- resultado$rejilla[
+    resultado$rejilla$gamma == gamma_optimo,
+  ]
+  
+  grafico <- ggplot2::ggplot(
+    datos,
+    ggplot2::aes(
+      x = alpha,
+      y = beta,
+      fill = MSE
+    )
+  ) +
+    ggplot2::geom_tile() +
+    ggplot2::scale_fill_gradient(
+      low = "lavender",
+      high = "purple"
+    ) +
+    ggplot2::geom_point(
+      data = resultado$optimo,
+      ggplot2::aes(
+        x = alpha,
+        y = beta
+      ),
+      color = "red",
+      size = 4
+    ) +
+    ggplot2::labs(
+      title = titulo,
+      subtitle = paste("gamma óptimo =", gamma_optimo),
+      x = "alpha",
+      y = "beta",
+      fill = "MSE"
+    ) +
+    ggplot2::theme_minimal()
+  
+  return(grafico)
+}
+
+
